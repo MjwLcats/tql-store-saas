@@ -1,0 +1,17 @@
+{
+  "name": "tql-store-web",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.13.1",
+  "scripts": {
+    "dev:platform": "pnpm --filter @tql-store/platform dev",
+    "dev:merchant": "pnpm --filter @tql-store/merchant dev",
+    "build:platform": "pnpm --filter @tql-store/platform build",
+    "build:merchant": "pnpm --filter @tql-store/merchant build",
+    "build": "pnpm -r --filter @tql-store/platform --filter @tql-store/merchant build",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

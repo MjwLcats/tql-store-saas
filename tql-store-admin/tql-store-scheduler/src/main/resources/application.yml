@@ -1,0 +1,11 @@
+server:
+  port: 9209
+spring:
+  application:
+    name: tql-store-scheduler
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:false}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+management.endpoints.web.exposure.include: health,info

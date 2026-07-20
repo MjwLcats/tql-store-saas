@@ -1,0 +1,8 @@
+.idea/
+*.iml
+target/
+**/target/
+.env
+logs/
+tql-store-forecast-python/.venv/
+__pycache__/

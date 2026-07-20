@@ -1,0 +1,49 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: tql-store-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:false}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:*"
+              - "http://127.0.0.1:*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+      routes:
+        - id: tql-store-auth
+          uri: ${AUTH_SERVICE_URI:http://127.0.0.1:9200}
+          predicates:
+            - Path=/api/auth/**
+        - id: tql-store-system
+          uri: ${SYSTEM_SERVICE_URI:http://127.0.0.1:9201}
+          predicates:
+            - Path=/api/system/**
+        - id: tql-store-operation
+          uri: ${OPERATION_SERVICE_URI:http://127.0.0.1:9202}
+          predicates:
+            - Path=/api/operation/**
+        - id: tql-store-integration
+          uri: ${INTEGRATION_SERVICE_URI:http://127.0.0.1:9206}
+          predicates:
+            - Path=/api/integration/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

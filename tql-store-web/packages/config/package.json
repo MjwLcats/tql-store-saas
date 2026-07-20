@@ -1,0 +1,9 @@
+{
+  "name": "@tql-store/config",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./theme.css": "./src/theme.css"
+  }
+}

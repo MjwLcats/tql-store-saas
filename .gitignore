@@ -1,0 +1,61 @@
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Local agent and tool state
+.agents/
+.codex/
+.hbuilderx/
+.vite/
+.pnpm-store/
+*.tsbuildinfo
+
+# Local AI/agent instructions may reference machine-specific resources
+/AGENTS.md
+
+# Dependencies and build outputs
+node_modules
+node_modules/
+dist/
+target/
+unpackage/
+coverage/
+.nyc_output/
+
+# Runtime data
+logs/
+*.log
+tmp/
+temp/
+uploads/
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+
+# Mobile packages
+*.ipa
+*.apk
+*.aab
+
+# Local design and QA captures
+/design-qa*.png
+/design-qa.md
+/reference-*.png

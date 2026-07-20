@@ -1,0 +1,31 @@
+server:
+  port: 9206
+spring:
+  application:
+    name: tql-store-integration
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:tql_store_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:false}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+management.endpoints.web.exposure.include: health,info
+
+integration:
+  hualala:
+    url: ${HUALALA_URL:https://www-openapi.lingjuliwl.cn}
+    version: ${HUALALA_VERSION:3}
+    app-key: ${HUALALA_APP_KEY:2060}
+    app-secret: ${HUALALA_APP_SECRET:}
+    group-id: ${HUALALA_GROUP_ID:247692}
+  hr-butler:
+    url: ${HR_BUTLER_URL:https://rlgj.tongqinglou.cn}
+    corp-name: ${HR_BUTLER_CORP_NAME:rlgjcenter}
+    app-id: ${HR_BUTLER_APP_ID:6}
+    app-secret: ${HR_BUTLER_APP_SECRET:}
+    post-concurrency: ${HR_BUTLER_POST_CONCURRENCY:8}
+    max-attempts: ${HR_BUTLER_MAX_ATTEMPTS:3}

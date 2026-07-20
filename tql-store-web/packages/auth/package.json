@@ -1,0 +1,15 @@
+{
+  "name": "@tql-store/auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tql-store/api": "workspace:*",
+    "@tql-store/shared": "workspace:*",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.17"
+  }
+}

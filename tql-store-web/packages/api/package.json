@@ -1,0 +1,13 @@
+{
+  "name": "@tql-store/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tql-store/shared": "workspace:*",
+    "axios": "^1.10.0"
+  }
+}

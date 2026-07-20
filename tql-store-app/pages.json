@@ -1,0 +1,118 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "登录",
+        "backgroundColor": "#FFFFFF",
+        "enablePullDownRefresh": false,
+        // 新增：禁用页面滚动（对 App、H5 均有效）
+        "disableScroll": true,
+        // 新增：App 专用配置
+        "app-plus": {
+          // 禁用 iOS/Android 弹性滚动
+          "bounce": "none",
+          // 禁用侧滑返回手势
+          "popgesture": "none"
+        }
+      }
+    },
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "门店运营",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false,
+        "app-plus": {
+          "background": "#EAF4FF",
+          "bounce": "vertical",
+          "pullToRefresh": {
+            "support": true,
+            "color": "#165DFF",
+            "height": "52px",
+            "range": "78px",
+            "offset": "44px",
+            "contentdown": {
+              "caption": "下拉刷新"
+            },
+            "contentover": {
+              "caption": "松开刷新"
+            },
+            "contentrefresh": {
+              "caption": "正在刷新…"
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "pages/tasks/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "任务",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
+      "path": "pages/messages/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "消息",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "我的",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false
+      }
+    }
+  ],
+  "tabBar": {
+    "custom": false,
+    "color": "#8E8E93",
+    "selectedColor": "#165DFF",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "工作台",
+        "iconPath": "static/icons/tabbar/workbench.png",
+        "selectedIconPath": "static/icons/tabbar/workbench-selected.png"
+      },
+      {
+        "pagePath": "pages/tasks/index",
+        "text": "任务",
+        "iconPath": "static/icons/tabbar/tasks.png",
+        "selectedIconPath": "static/icons/tabbar/tasks-selected.png"
+      },
+      {
+        "pagePath": "pages/messages/index",
+        "text": "消息",
+        "iconPath": "static/icons/tabbar/messages.png",
+        "selectedIconPath": "static/icons/tabbar/messages-selected.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "static/icons/tabbar/profile.png",
+        "selectedIconPath": "static/icons/tabbar/profile-selected.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "tql-store-app",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#FFFFFF"
+  },
+  "uniIdRouter": {}
+}
