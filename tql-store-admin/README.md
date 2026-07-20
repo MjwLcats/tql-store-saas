@@ -4,25 +4,33 @@ Spring Boot 3.2、Spring Cloud 2023 与 Spring Cloud Alibaba 组成的多服务 
 
 ## 初始化数据库
 
-确认本机 MySQL 8 和 Redis 已启动，然后在项目根目录执行：
+复制环境变量模板并填写当前环境的连接信息。`.env.local` 已被 Git 忽略，禁止提交真实密码：
 
-```powershell
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/init/tql_store_saas.sql"
+```bash
+cp .env.example .env.local
 ```
 
-脚本会创建 `tql_store_saas` 数据库、基础用户、菜单及内容演示数据，可重复执行。MySQL 密码可通过各服务的 `MYSQL_PASSWORD` 环境变量覆盖，默认值仅用于本地开发。
+macOS/Linux 可通过安全启动脚本加载变量，例如：
+
+```bash
+scripts/with-env.sh mvn -pl tql-store-auth spring-boot:run
+```
+
+IDEA 启动时，将 `.env.local` 中的变量录入 Run Configuration 的 Environment variables。数据库账号和密码没有代码默认值，未配置时服务会拒绝启动。
+
+初始化或迁移数据库前必须确认目标环境并完成备份。脚本会创建 `tql_store_saas` 数据库、基础用户、菜单及内容演示数据，可重复执行；生产环境禁止直接执行初始化脚本。
 
 已有第一阶段数据库升级到 RBAC 版本时，按顺序执行：
 
-```powershell
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V002__rbac_user_role_store.sql"
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V003__operation_content_data_scope.sql"
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V004__integration_sync_task.sql"
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V005__integration_hll_shop.sql"
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V006__repair_complete_chinese_comments.sql"
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V007__hr_butler_master_data.sql"
-mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V008__split_platform_merchant_user_rbac.sql"
+```bash
+set -a
+source .env.local
+set +a
+export MYSQL_PWD="${MYSQL_PASSWORD}"
+mysql --host="${MYSQL_HOST}" --port="${MYSQL_PORT}" --user="${MYSQL_USERNAME}" --default-character-set=utf8mb4 "${MYSQL_DATABASE}" < sql/migration/V002__rbac_user_role_store.sql
 ```
+
+其余迁移按版本号顺序执行，禁止跳版；密码只通过进程环境传递，不写入命令、脚本或提交记录。
 
 当前本机数据库已执行上述迁移。第三方同步模块联调需要启动集成服务，并在修改网关路由后重新启动网关。
 
