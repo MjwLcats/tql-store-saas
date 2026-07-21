@@ -19,28 +19,28 @@
         <div class="mobile-brand"><BrandMark :title="config.shortTitle" /></div>
         <h2>{{ config.loginTitle }}</h2>
         <p class="login-subtitle">请输入账号信息进入{{ config.clientType === 'PLATFORM' ? '平台工作台' : '商家工作台' }}</p>
-        <a-form ref="formRef" :model="form" layout="vertical" @submit-success="handleLogin">
+        <a-form ref="formRef" :model="form" layout="vertical" autocomplete="on" @submit-success="handleLogin">
           <a-form-item
             v-if="config.clientType === 'MERCHANT'"
             field="merchantNo"
             label="商户号"
             :rules="[{ required: true, message: '请输入商户号' }]"
           >
-            <a-input v-model="form.merchantNo" size="large" placeholder="请输入商户号" allow-clear>
+            <a-input v-model="form.merchantNo" name="merchantNo" autocomplete="off" size="large" placeholder="请输入商户号" allow-clear>
               <template #prefix><IconIdcard /></template>
             </a-input>
           </a-form-item>
           <a-form-item field="username" label="账号" :rules="[{ required: true, message: '请输入账号' }]">
-            <a-input v-model="form.username" size="large" placeholder="请输入账号" allow-clear>
+            <a-input v-model="form.username" name="username" autocomplete="username" size="large" placeholder="请输入账号" allow-clear>
               <template #prefix><IconUser /></template>
             </a-input>
           </a-form-item>
           <a-form-item field="password" label="密码" :rules="[{ required: true, message: '请输入密码' }]">
-            <a-input-password v-model="form.password" size="large" placeholder="请输入密码" allow-clear>
+            <a-input-password v-model="form.password" name="password" autocomplete="current-password" size="large" placeholder="请输入密码" allow-clear>
               <template #prefix><IconLock /></template>
             </a-input-password>
           </a-form-item>
-          <div class="login-options"><a-checkbox v-model="remember">记住账号</a-checkbox></div>
+          <div class="login-options"><a-checkbox v-model="remember">记住登录信息</a-checkbox></div>
           <a-button class="login-button" type="primary" size="large" html-type="submit" long :loading="loading">
             登录
           </a-button>
@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject, reactive, ref } from 'vue';
+import { inject, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { IconCheckCircleFill, IconIdcard, IconLock, IconUser } from '@arco-design/web-vue/es/icon';
 import { useRouter } from 'vue-router';
@@ -67,16 +67,45 @@ const router = useRouter();
 const store = useAppStore();
 const loading = ref(false);
 const remember = ref(true);
+const rememberedLoginKey = `tql-store:${config.clientType.toLowerCase()}:remembered-login`;
 const form = reactive({
-  merchantNo: '',
-  username: '',
-  password: ''
+  merchantNo: config.defaultMerchantNo || '',
+  username: config.defaultUsername || '',
+  password: config.defaultPassword || ''
 });
+
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(rememberedLoginKey);
+    if (!saved) return;
+    const value = JSON.parse(saved) as { merchantNo?: string; username?: string };
+    form.merchantNo = typeof value.merchantNo === 'string' ? value.merchantNo : form.merchantNo;
+    form.username = typeof value.username === 'string' ? value.username : form.username;
+  } catch {
+    localStorage.removeItem(rememberedLoginKey);
+  }
+});
+
+watch(remember, (checked) => {
+  if (!checked) localStorage.removeItem(rememberedLoginKey);
+});
+
+function saveRememberedLogin() {
+  if (!remember.value) {
+    localStorage.removeItem(rememberedLoginKey);
+    return;
+  }
+  localStorage.setItem(rememberedLoginKey, JSON.stringify({
+    merchantNo: config.clientType === 'MERCHANT' ? form.merchantNo.trim() : undefined,
+    username: form.username.trim()
+  }));
+}
 
 async function handleLogin() {
   loading.value = true;
   try {
     const result = await login(form.username, form.password, config.clientType, form.merchantNo);
+    saveRememberedLogin();
     setToken(config.clientType, result.token);
     await store.loadContext(true);
     Message.success(`欢迎回来，${result.user.displayName}`);

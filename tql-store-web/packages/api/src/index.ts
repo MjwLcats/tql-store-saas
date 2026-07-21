@@ -1,6 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import type {
   ApiResponse,
+  ChangePasswordPayload,
   ClientType,
   ContentItem,
   ContentQuery,
@@ -75,6 +76,8 @@ export const login = (username: string, password: string, clientType: ClientType
   });
 
 export const logout = () => request<void>({ method: 'POST', url: '/api/auth/logout' });
+export const changePassword = (data: ChangePasswordPayload) =>
+  request<void>({ method: 'POST', url: '/api/auth/change-password', data });
 export const fetchProfile = () => request<UserProfile>({ method: 'GET', url: '/api/system/profile' });
 export const fetchMenus = () => request<MenuItem[]>({ method: 'GET', url: '/api/system/menus' });
 export const fetchContents = (params: ContentQuery) =>

@@ -1,5 +1,6 @@
 package com.tql.store.auth.controller;
 
+import com.tql.store.auth.model.ChangePasswordRequest;
 import com.tql.store.auth.model.LoginRequest;
 import com.tql.store.auth.model.LoginResponse;
 import com.tql.store.auth.service.AuthService;
@@ -31,6 +32,17 @@ public class AuthController {
     public ApiResponse<Void> logout(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         authService.logout(authorization);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(userId, tenantId, clientType, authorization, request);
         return ApiResponse.success(null);
     }
 }

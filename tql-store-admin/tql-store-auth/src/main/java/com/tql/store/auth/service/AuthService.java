@@ -1,6 +1,7 @@
 package com.tql.store.auth.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tql.store.auth.model.ChangePasswordRequest;
 import com.tql.store.auth.model.LoginRequest;
 import com.tql.store.auth.model.LoginResponse;
 import com.tql.store.common.security.PasswordHasher;
@@ -114,6 +115,71 @@ public class AuthService {
         if (!token.isEmpty()) {
             redisTemplate.delete(SESSION_PREFIX + token);
         }
+    }
+
+    public void changePassword(
+            Long userId,
+            Long tenantId,
+            String rawClientType,
+            String authorization,
+            ChangePasswordRequest request) {
+        if (userId == null || tenantId == null || rawClientType == null) {
+            throw new SecurityException("登录状态无效");
+        }
+        String clientType = rawClientType.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_CLIENTS.contains(clientType)) {
+            throw new SecurityException("客户端类型不正确");
+        }
+        String newPassword = request.newPassword();
+        if (newPassword == null || newPassword.isBlank()
+                || newPassword.length() < 8 || newPassword.length() > 64) {
+            throw new IllegalArgumentException("新密码长度应为 8-64 位");
+        }
+
+        boolean merchant = "MERCHANT".equals(clientType);
+        String selectSql = merchant ? """
+                SELECT password_hash
+                FROM sys_merchant_user
+                WHERE id = ? AND tenant_id = ? AND status = 1
+                  AND login_enabled = 1 AND deleted = 0
+                """ : """
+                SELECT password_hash
+                FROM sys_platform_user
+                WHERE id = ? AND status = 1 AND deleted = 0
+                """;
+        String currentHash;
+        try {
+            currentHash = merchant
+                    ? jdbcTemplate.queryForObject(selectSql, String.class, userId, tenantId)
+                    : jdbcTemplate.queryForObject(selectSql, String.class, userId);
+        } catch (EmptyResultDataAccessException ex) {
+            throw new SecurityException("当前账号不可用");
+        }
+        if (!PasswordHasher.matches(request.currentPassword(), currentHash)) {
+            throw new IllegalArgumentException("当前密码不正确");
+        }
+        if (PasswordHasher.matches(newPassword, currentHash)) {
+            throw new IllegalArgumentException("新密码不能与当前密码相同");
+        }
+
+        String updateSql = merchant ? """
+                UPDATE sys_merchant_user
+                SET password_hash = ?, update_time = CURRENT_TIMESTAMP
+                WHERE id = ? AND tenant_id = ? AND status = 1
+                  AND login_enabled = 1 AND deleted = 0
+                """ : """
+                UPDATE sys_platform_user
+                SET password_hash = ?, update_time = CURRENT_TIMESTAMP
+                WHERE id = ? AND status = 1 AND deleted = 0
+                """;
+        String encodedPassword = PasswordHasher.encode(newPassword);
+        int updated = merchant
+                ? jdbcTemplate.update(updateSql, encodedPassword, userId, tenantId)
+                : jdbcTemplate.update(updateSql, encodedPassword, userId);
+        if (updated != 1) {
+            throw new IllegalStateException("密码修改失败，请稍后重试");
+        }
+        logout(authorization);
     }
 
     private IllegalArgumentException invalidCredentials(String clientType) {

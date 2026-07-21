@@ -31,6 +31,11 @@ export interface LoginResponse {
   };
 }
 
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface UserProfile {
   id: number;
   tenantId: number;
