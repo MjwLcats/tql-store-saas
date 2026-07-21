@@ -155,7 +155,7 @@
 			}
 		},
 		computed: {
-			pageTitle() { return ['工作台', '任务', '消息', '我的'][this.activeTab] },
+			pageTitle() { return ['首页', '任务', '应用', '我的'][this.activeTab] },
 			currentDate() { return new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date()) },
 			tenantName() { return this.session?.user?.tenantName || '当前组织' },
 			displayName() { return this.session?.user?.displayName || '当前用户' },
@@ -238,7 +238,7 @@
 		max-width: 820rpx;
 		min-height: 100vh;
 		margin: 0 auto;
-		padding: calc(env(safe-area-inset-top) + 40rpx) 32rpx 56rpx;
+		padding: calc(env(safe-area-inset-top) + 40rpx) 32rpx calc(146rpx + env(safe-area-inset-bottom));
 	}
 
 	.page-header { display: flex; align-items: center; justify-content: space-between; }

@@ -1,12 +1,14 @@
 <template>
 	<view class="tabbar-wrap" aria-label="主导航">
 		<view class="tabbar">
+			<!-- 胶囊选中背景暂时停用，保留以便后续恢复。
 			<view
 				class="active-pill"
 				:style="pillStyle"
 			>
 				<view class="active-pill__shine"></view>
 			</view>
+			-->
 
 			<button
 				v-for="(item, index) in tabs"
@@ -44,18 +46,20 @@
 		data() {
 			return {
 				tabs: [
-					{ text: '工作台', icon: '/static/icons/tabbar/workbench.png', selectedIcon: '/static/icons/tabbar/workbench-selected.png' },
-					{ text: '任务', icon: '/static/icons/tabbar/tasks.png', selectedIcon: '/static/icons/tabbar/tasks-selected.png' },
-					{ text: '消息', icon: '/static/icons/tabbar/messages.png', selectedIcon: '/static/icons/tabbar/messages-selected.png' },
-					{ text: '我的', icon: '/static/icons/tabbar/profile.png', selectedIcon: '/static/icons/tabbar/profile-selected.png' }
+					{ text: '首页', icon: '/static/icons/tabbar/home-outline.svg', selectedIcon: '/static/icons/tabbar/home-filled.svg' },
+					{ text: '任务', icon: '/static/icons/tabbar/task-outline.svg', selectedIcon: '/static/icons/tabbar/task-filled.svg' },
+					{ text: '应用', icon: '/static/icons/tabbar/apps-outline.svg', selectedIcon: '/static/icons/tabbar/apps-filled.svg' },
+					{ text: '我的', icon: '/static/icons/tabbar/profile-outline.svg', selectedIcon: '/static/icons/tabbar/profile-filled.svg' }
 				]
 			}
 		},
+		/* 胶囊位移逻辑暂时停用，保留以便后续恢复。
 		computed: {
 			pillStyle() {
 				return { transform: `translate3d(${this.activeIndex * 100}%, 0, 0)` }
 			}
 		},
+		*/
 		methods: {
 			select(index) {
 				if (index === this.activeIndex || !this.tabs[index]) return
@@ -69,11 +73,16 @@
 	.tabbar-wrap {
 		position: fixed;
 		z-index: 999;
-		left: max(24rpx, env(safe-area-inset-left));
-		right: max(24rpx, env(safe-area-inset-right));
-		bottom: calc(14rpx + env(safe-area-inset-bottom));
+		left: 0;
+		right: 0;
+		bottom: 0;
 		box-sizing: border-box;
-		filter: drop-shadow(0 14rpx 34rpx rgba(15, 23, 42, 0.16));
+		padding-bottom: env(safe-area-inset-bottom);
+		border-top: 1rpx solid rgba(0, 0, 0, 0.1);
+		background: rgba(250, 250, 250, 0.98);
+		box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.025);
+		backdrop-filter: blur(20rpx);
+		-webkit-backdrop-filter: blur(20rpx);
 	}
 
 	.tabbar {
@@ -82,17 +91,12 @@
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 		box-sizing: border-box;
 		width: 100%;
-		height: clamp(104rpx, 7.4vh, 124rpx);
-		padding: 8rpx;
-		overflow: hidden;
-		border: 1rpx solid rgba(255, 255, 255, 0.9);
-		border-radius: 999rpx;
-		background: rgba(255, 255, 255, 0.88);
-		box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.92);
-		backdrop-filter: blur(26rpx) saturate(145%);
-		-webkit-backdrop-filter: blur(26rpx) saturate(145%);
+		height: 106rpx;
+		padding: 8rpx 20rpx 6rpx;
+		background: transparent;
 	}
 
+	/* 胶囊选中背景暂时停用，保留以便后续恢复。
 	.active-pill {
 		position: absolute;
 		z-index: 0;
@@ -115,6 +119,7 @@
 		background: rgba(255, 255, 255, 0.28);
 		filter: blur(5rpx);
 	}
+	*/
 
 	.tab-item {
 		position: relative;
@@ -126,11 +131,11 @@
 		min-width: 0;
 		height: 100%;
 		margin: 0;
-		padding: 5rpx 0 4rpx;
+		padding: 4rpx 0 2rpx;
 		border: 0;
-		border-radius: 999rpx;
+		border-radius: 0;
 		background: transparent;
-		color: #8e8e93;
+		color: #5f6368;
 		line-height: 1;
 	}
 
@@ -138,41 +143,39 @@
 
 	.tab-icon-wrap {
 		position: relative;
-		width: 40rpx;
-		height: 40rpx;
-		transition: transform 390ms cubic-bezier(0.2, 1.45, 0.36, 1);
+		width: 46rpx;
+		height: 46rpx;
+		transition: transform 180ms ease;
 	}
 
 	.tab-icon {
 		position: absolute;
 		inset: 0;
-		width: 40rpx;
-		height: 40rpx;
-		transition: opacity 180ms ease, transform 390ms cubic-bezier(0.2, 1.45, 0.36, 1);
+		width: 46rpx;
+		height: 46rpx;
+		transition: opacity 160ms ease, transform 180ms ease;
 	}
 
-	.tab-icon--active { opacity: 0; transform: scale(0.72); }
-	.tab-item--active .tab-icon-wrap { transform: translateY(-1rpx) scale(1.07); }
-	.tab-item--active .tab-icon--idle { opacity: 0; transform: scale(0.76); }
+	.tab-icon--active { opacity: 0; transform: scale(0.88); }
+	.tab-item--active .tab-icon-wrap { transform: translateY(-1rpx); }
+	.tab-item--active .tab-icon--idle { opacity: 0; transform: scale(0.9); }
 	.tab-item--active .tab-icon--active { opacity: 1; transform: scale(1); }
 
 	.tab-label {
-		margin-top: 3rpx;
-		font-size: clamp(20rpx, 2.7vw, 24rpx);
+		margin-top: 4rpx;
+		font-size: 22rpx;
 		font-weight: 500;
 		line-height: 1.05;
 		white-space: nowrap;
-		transition: color 180ms ease, transform 390ms cubic-bezier(0.2, 1.35, 0.36, 1), font-weight 180ms ease;
+		transition: color 160ms ease, font-weight 160ms ease;
 	}
 
 	.tab-item--active .tab-label {
 		color: #165dff;
-		font-weight: 600;
-		transform: translateY(-1rpx);
+		font-weight: 500;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.active-pill,
 		.tab-icon-wrap,
 		.tab-icon,
 		.tab-label { transition-duration: 1ms !important; }
