@@ -3,16 +3,6 @@
 		<view class="top-wash" aria-hidden="true"></view>
 
 		<view class="page-main">
-			<view class="page-header">
-				<view>
-					<text class="page-title">{{ pageTitle }}</text>
-				</view>
-				<button class="header-action" hover-class="header-action--pressed" aria-label="消息通知" @click="openMessagesTab">
-					<image class="header-action-icon" src="/static/icons/nav/notification.svg" mode="aspectFit" />
-					<view class="header-dot"></view>
-				</button>
-			</view>
-
 			<view class="tab-stage">
 			<view v-if="activeTab === 0" key="workbench" class="tab-page" data-testid="panel-workbench">
 				<view class="welcome-row">
@@ -51,7 +41,7 @@
 				<view v-else class="empty-card"><text>暂无真实任务数据</text></view>
 			</view>
 
-			<view v-else-if="activeTab === 1" key="tasks" class="tab-page" data-testid="panel-tasks">
+			<view v-else-if="activeTab === 2" key="tasks" class="tab-page" data-testid="panel-tasks">
 				<view class="task-summary">
 					<view><text class="summary-number">{{ tasks.length }}</text><text class="summary-unit">项</text></view>
 					<text class="summary-title">待处理任务</text>
@@ -75,29 +65,41 @@
 				<view v-else class="empty-card"><text>暂无任务</text></view>
 			</view>
 
-			<view v-else-if="activeTab === 2" key="messages" class="tab-page" data-testid="panel-messages">
-				<view class="notice-card">
-					<image class="notice-icon" src="/static/icons/nav/notification.svg" mode="aspectFit" />
-					<view class="notice-copy"><text class="notice-title">开启消息通知</text><text class="notice-subtitle">重要经营消息及时提醒，不错过待办事项</text></view>
-					<button class="notice-button" hover-class="notice-button--pressed">去设置</button>
+			<view v-else-if="activeTab === 1" key="analysis" class="tab-page" data-testid="panel-analysis">
+				<view class="analysis-card">
+					<text class="analysis-kicker">经营数据</text>
+					<text class="analysis-title">分析中心</text>
+					<text class="analysis-description">经营指标与趋势分析将在数据接口接入后展示</text>
+				</view>
+				<view class="empty-card"><text>暂无可用分析数据</text></view>
+			</view>
+
+			<view v-else-if="activeTab === 3" key="applications" class="tab-page app-workbench" data-testid="panel-applications">
+				<view class="workbench-intro">
+					<text class="workbench-title">工作台</text>
+					<text class="workbench-subtitle">常用业务功能集中入口</text>
 				</view>
 
-				<view class="search-box"><image class="search-icon" src="/static/icons/nav/search.svg" mode="aspectFit" /><text class="search-placeholder">搜索通知、任务或运营消息</text></view>
-				<view class="message-filters">
-					<button v-for="(label, index) in messageFilters" :key="label" class="message-filter" :class="{ 'message-filter--active': messageFilter === index }" @click="messageFilter = index">{{ label }}</button>
+				<view class="application-card">
+					<view class="application-card__header">
+						<text class="application-card__title">巡检管理</text>
+						<text class="application-card__meta">4 个应用</text>
+					</view>
+					<view class="application-grid">
+						<button
+							v-for="item in inspectionApps"
+							:key="item.label"
+							class="application-item"
+							hover-class="application-item--pressed"
+							@click="openApplication(item)"
+						>
+							<view class="application-icon" :class="`application-icon--${item.tone}`">
+								<image :src="item.icon" mode="aspectFit" />
+							</view>
+							<text class="application-label">{{ item.label }}</text>
+						</button>
+					</view>
 				</view>
-
-				<view v-if="messages.length" class="message-list">
-					<button v-for="message in messages" :key="message.id" class="message-row" hover-class="list-row--pressed" @click="readMessage(message)">
-						<view class="message-avatar" :class="`message-avatar--${message.tone}`"><image :src="message.icon" mode="aspectFit" /></view>
-						<view class="message-copy">
-							<view class="message-title-line"><text class="message-title">{{ message.title }}</text><text class="message-time">{{ message.time }}</text></view>
-							<text class="message-preview">{{ message.preview }}</text>
-						</view>
-						<view v-if="message.unread" class="message-unread"></view>
-					</button>
-				</view>
-				<view v-else class="empty-card"><text>暂无消息</text></view>
 			</view>
 
 			<view v-else key="profile" class="tab-page" data-testid="panel-profile">
@@ -139,13 +141,16 @@
 				activeTab: 0,
 				session: null,
 				taskFilter: 0,
-				messageFilter: 0,
 				storeName: '未选择门店',
 				taskFilters: ['待处理', '进行中', '已完成'],
-				messageFilters: ['全部', '经营提醒', '系统通知'],
 				metrics: [],
 				tasks: [],
-				messages: [],
+				inspectionApps: [
+					{ label: '巡店任务', icon: '/static/icons/tabbar/task-filled.svg', tone: 'blue' },
+					{ label: '门店自检', icon: '/static/icons/merchant.svg', tone: 'cyan' },
+					{ label: '检查记录', icon: '/static/icons/tabbar/task-outline.svg', tone: 'amber' },
+					{ label: '整改任务', icon: '/static/icons/nav/notification.svg', tone: 'red' }
+				],
 				profileItems: [
 					{ label: '账号与安全', value: '' },
 					{ label: '消息设置', value: '已开启' },
@@ -155,7 +160,6 @@
 			}
 		},
 		computed: {
-			pageTitle() { return ['首页', '任务', '应用', '我的'][this.activeTab] },
 			currentDate() { return new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date()) },
 			tenantName() { return this.session?.user?.tenantName || '当前组织' },
 			displayName() { return this.session?.user?.displayName || '当前用户' },
@@ -177,15 +181,14 @@
 		},
 		methods: {
 			setActiveTab(index) {
-				if (!Number.isInteger(index) || index < 0 || index > 3 || index === this.activeTab) return
+				if (!Number.isInteger(index) || index < 0 || index > 4 || index === this.activeTab) return
 				this.activeTab = index
 			},
 			goToTasks() {
-				this.setActiveTab(1)
+				this.setActiveTab(2)
 			},
-			openMessagesTab() { this.setActiveTab(2) },
 			openTask(task) { uni.showToast({ title: `${task.title} · ${task.status}`, icon: 'none' }) },
-			readMessage(message) { message.unread = false; uni.showToast({ title: '已标记为已读', icon: 'none' }) },
+			openApplication(item) { this.showPending(item.label) },
 			showPending(label) { uni.showToast({ title: `${label}功能建设中`, icon: 'none' }) },
 			handleLogout() {
 				uni.showModal({
@@ -235,36 +238,15 @@
 		z-index: 1;
 		box-sizing: border-box;
 		width: 100%;
-		max-width: 820rpx;
+		max-width: var(--app-page-max-width);
 		min-height: 100vh;
 		margin: 0 auto;
-		padding: calc(env(safe-area-inset-top) + 40rpx) 32rpx calc(136rpx + env(safe-area-inset-bottom));
+		padding: calc(env(safe-area-inset-top) + var(--app-page-top-gap)) var(--app-page-gutter) calc(var(--app-tabbar-reserve) + env(safe-area-inset-bottom));
 	}
 
-	.page-header { display: flex; align-items: center; justify-content: space-between; }
-	.page-title { display: block; margin-top: 12rpx; font-size: 54rpx; font-weight: 650; line-height: 1.2; letter-spacing: -1rpx; }
+	button::after { border: 0; }
 
-	.header-action {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 78rpx;
-		height: 78rpx;
-		margin: 0;
-		padding: 0;
-		border: 1rpx solid rgba(229, 230, 235, 0.78);
-		border-radius: 50%;
-		background: rgba(255, 255, 255, 0.74);
-		box-shadow: 0 8rpx 24rpx rgba(29, 33, 41, 0.06);
-		backdrop-filter: blur(16px);
-	}
-	.header-action::after, button::after { border: 0; }
-	.header-action--pressed { transform: scale(0.94); }
-	.header-action-icon { width: 40rpx; height: 40rpx; }
-	.header-dot { position: absolute; top: 8rpx; right: 8rpx; width: 14rpx; height: 14rpx; border: 3rpx solid #fff; border-radius: 50%; background: #f53f3f; }
-
-	.tab-stage { position: relative; margin-top: 50rpx; }
+	.tab-stage { position: relative; margin-top: 0; }
 	.tab-page { width: 100%; margin-top: 0; }
 
 	.welcome-row { display: flex; align-items: flex-start; justify-content: space-between; }
@@ -290,7 +272,7 @@
 	.focus-button { flex: 0 0 auto; height: 64rpx; margin: 0 0 2rpx 20rpx; padding: 0 24rpx; border: 0; border-radius: 16rpx; background: var(--primary); color: #fff; font-size: 24rpx; font-weight: 500; line-height: 64rpx; }
 	.focus-button--pressed { transform: scale(.96); background: #0e42d2; }
 
-	.section-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 44rpx; }
+	.section-heading { display: flex; align-items: center; justify-content: space-between; margin-top: var(--app-section-gap); }
 	.section-heading--tasks { margin-top: 48rpx; }
 	.section-title { font-size: 30rpx; font-weight: 600; }
 	.section-link, .section-link-button { color: var(--primary); font-size: 23rpx; }
@@ -304,8 +286,8 @@
 	.metric-trend { display: block; margin-top: 16rpx; color: #00b42a; font-size: 19rpx; line-height: 1.3; }
 	.metric-trend--warn { color: #f77234; }
 
-	.list-card, .settings-card { margin-top: 22rpx; overflow: hidden; border: 1rpx solid rgba(229,230,235,.86); border-radius: 26rpx; background: rgba(255,255,255,.94); }
-	.empty-card { margin-top: 22rpx; padding: 56rpx 24rpx; border: 1rpx solid rgba(229,230,235,.86); border-radius: 26rpx; background: #fff; color: var(--muted); font-size: 24rpx; text-align: center; }
+	.list-card, .settings-card { margin-top: 22rpx; overflow: hidden; border: 1rpx solid rgba(229,230,235,.86); border-radius: var(--app-card-radius); background: rgba(255,255,255,.94); }
+	.empty-card { margin-top: 22rpx; padding: 56rpx 24rpx; border: 1rpx solid rgba(229,230,235,.86); border-radius: var(--app-card-radius); background: #fff; color: var(--muted); font-size: 24rpx; text-align: center; }
 	.task-row, .message-row, .settings-row { display: flex; align-items: center; box-sizing: border-box; width: 100%; margin: 0; padding: 25rpx 24rpx; border: 0; border-bottom: 1rpx solid #f2f3f5; border-radius: 0; background: transparent; text-align: left; line-height: 1; }
 	.task-row:last-child, .message-row:last-child, .settings-row:last-child { border-bottom: 0; }
 	.list-row--pressed { background: #f7f8fa; }
@@ -363,6 +345,55 @@
 	.message-preview { display: block; margin-top: 11rpx; overflow: hidden; color: var(--muted); font-size: 22rpx; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 	.message-unread { position: absolute; top: 26rpx; right: 18rpx; width: 13rpx; height: 13rpx; border-radius: 50%; background: #f53f3f; }
 
+	.analysis-card {
+		box-sizing: border-box;
+		padding: 34rpx;
+		border-radius: 28rpx;
+		background: #165dff;
+		box-shadow: 0 18rpx 36rpx rgba(22, 93, 255, .16);
+		color: #fff;
+	}
+	.analysis-kicker { display: block; color: rgba(255, 255, 255, .72); font-size: 22rpx; }
+	.analysis-title { display: block; margin-top: 13rpx; font-size: 37rpx; font-weight: 650; }
+	.analysis-description { display: block; margin-top: 18rpx; color: rgba(255, 255, 255, .82); font-size: 23rpx; line-height: 1.55; }
+
+	.app-workbench { padding-bottom: 20rpx; }
+	.workbench-intro { margin: 2rpx 4rpx 28rpx; }
+	.workbench-title { display: block; font-size: 34rpx; font-weight: 600; line-height: 1.35; }
+	.workbench-subtitle { display: block; margin-top: 9rpx; color: var(--muted); font-size: 23rpx; line-height: 1.45; }
+	.application-card {
+		overflow: hidden;
+		border: 1rpx solid rgba(229, 230, 235, .82);
+		border-radius: 28rpx;
+		background: rgba(255, 255, 255, .96);
+		box-shadow: 0 10rpx 30rpx rgba(29, 33, 41, .045);
+	}
+	.application-card__header { display: flex; align-items: center; justify-content: space-between; padding: 29rpx 30rpx 18rpx; }
+	.application-card__title { font-size: 29rpx; font-weight: 600; }
+	.application-card__meta { color: var(--muted); font-size: 21rpx; }
+	.application-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 16rpx 10rpx 30rpx; }
+	.application-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: flex-start;
+		min-width: 0;
+		margin: 0;
+		padding: 15rpx 4rpx 10rpx;
+		border: 0;
+		border-radius: 20rpx;
+		background: transparent;
+		line-height: 1;
+	}
+	.application-item--pressed { background: #f2f3f5; transform: scale(.96); }
+	.application-icon { display: flex; align-items: center; justify-content: center; width: 82rpx; height: 82rpx; border-radius: 23rpx; }
+	.application-icon image { width: 44rpx; height: 44rpx; }
+	.application-icon--blue { background: #e8f3ff; }
+	.application-icon--cyan { background: #e8fffb; }
+	.application-icon--amber { background: #fff7e8; }
+	.application-icon--red { background: #fff1f0; }
+	.application-label { display: block; max-width: 100%; margin-top: 18rpx; overflow: hidden; color: var(--text); font-size: 23rpx; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+
 	.profile-card { display: flex; align-items: center; padding: 31rpx; border-radius: 28rpx; background: #fff; }
 	.profile-avatar { display: flex; align-items: center; justify-content: center; width: 92rpx; height: 92rpx; border-radius: 50%; background: #e8f3ff; color: var(--primary); font-size: 36rpx; font-weight: 650; }
 	.profile-copy { flex: 1; min-width: 0; margin-left: 22rpx; }
@@ -386,6 +417,8 @@
 		.metric-card { padding: 20rpx 14rpx; }
 		.metric-value { font-size: 27rpx; }
 		.focus-subtitle { display: none; }
+		.application-grid { padding-right: 4rpx; padding-left: 4rpx; }
+		.application-label { font-size: 21rpx; }
 	}
 
 </style>

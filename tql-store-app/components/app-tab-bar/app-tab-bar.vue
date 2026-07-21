@@ -37,6 +37,7 @@
 			return {
 				tabs: [
 					{ text: '首页' },
+					{ text: '分析' },
 					{ text: '任务' },
 					{ text: '应用' },
 					{ text: '我的' }
@@ -78,7 +79,7 @@
 	.tabbar {
 		position: relative;
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(5, minmax(0, 1fr));
 		box-sizing: border-box;
 		width: 100%;
 		height: 96rpx;
@@ -93,7 +94,7 @@
 		top: 8rpx;
 		bottom: 8rpx;
 		left: 8rpx;
-		width: calc((100% - 16rpx) / 4);
+		width: calc((100% - 16rpx) / 5);
 		border-radius: 999rpx;
 		background: rgba(118, 118, 128, 0.12);
 		box-shadow: inset 0 1rpx 1rpx rgba(255, 255, 255, 0.78), 0 4rpx 12rpx rgba(15, 23, 42, 0.05);
