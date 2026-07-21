@@ -238,7 +238,7 @@
 		max-width: 820rpx;
 		min-height: 100vh;
 		margin: 0 auto;
-		padding: calc(env(safe-area-inset-top) + 40rpx) 32rpx calc(146rpx + env(safe-area-inset-bottom));
+		padding: calc(env(safe-area-inset-top) + 40rpx) 32rpx calc(136rpx + env(safe-area-inset-bottom));
 	}
 
 	.page-header { display: flex; align-items: center; justify-content: space-between; }

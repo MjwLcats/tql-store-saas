@@ -91,8 +91,8 @@
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 		box-sizing: border-box;
 		width: 100%;
-		height: 106rpx;
-		padding: 8rpx 20rpx 6rpx;
+		height: 96rpx;
+		padding: 6rpx 20rpx 4rpx;
 		background: transparent;
 	}
 
@@ -131,7 +131,7 @@
 		min-width: 0;
 		height: 100%;
 		margin: 0;
-		padding: 4rpx 0 2rpx;
+		padding: 2rpx 0 0;
 		border: 0;
 		border-radius: 0;
 		background: transparent;
@@ -143,16 +143,16 @@
 
 	.tab-icon-wrap {
 		position: relative;
-		width: 46rpx;
-		height: 46rpx;
+		width: 40rpx;
+		height: 40rpx;
 		transition: transform 180ms ease;
 	}
 
 	.tab-icon {
 		position: absolute;
 		inset: 0;
-		width: 46rpx;
-		height: 46rpx;
+		width: 40rpx;
+		height: 40rpx;
 		transition: opacity 160ms ease, transform 180ms ease;
 	}
 
@@ -162,8 +162,8 @@
 	.tab-item--active .tab-icon--active { opacity: 1; transform: scale(1); }
 
 	.tab-label {
-		margin-top: 4rpx;
-		font-size: 22rpx;
+		margin-top: 3rpx;
+		font-size: 20rpx;
 		font-weight: 500;
 		line-height: 1.05;
 		white-space: nowrap;

@@ -27,4 +27,7 @@ test('wechat-style bar is full width with no rounded capsule container', () => {
 	assert.match(tabBarSource, /right: 0;/)
 	assert.match(tabBarSource, /border-top: 1rpx solid/)
 	assert.match(tabBarSource, /border-radius: 0;/)
+	assert.match(tabBarSource, /height: 96rpx;/)
+	assert.match(tabBarSource, /width: 40rpx;/)
+	assert.match(tabBarSource, /font-size: 20rpx;/)
 })
