@@ -43,6 +43,9 @@
             /* ios打包配置 */
             "ios" : {
                 "dSYMs" : false,
+                "privacyDescription" : {
+                    "NSLocalNetworkUsageDescription" : "用于连接同一局域网内的同庆楼门店运营调试服务"
+                },
                 "NSAppTransportSecurity" : {
                     "NSAllowsArbitraryLoads" : true
                 }

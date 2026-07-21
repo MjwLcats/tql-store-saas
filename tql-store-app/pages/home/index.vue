@@ -5,7 +5,6 @@
 		<view class="page-main">
 			<view class="page-header">
 				<view>
-					<text class="brand-eyebrow">同庆楼 · 门店运营</text>
 					<text class="page-title">{{ pageTitle }}</text>
 				</view>
 				<button class="header-action" hover-class="header-action--pressed" aria-label="消息通知" @click="openMessagesTab">
@@ -243,7 +242,6 @@
 	}
 
 	.page-header { display: flex; align-items: center; justify-content: space-between; }
-	.brand-eyebrow { display: block; color: var(--primary); font-size: 22rpx; font-weight: 600; letter-spacing: 1rpx; }
 	.page-title { display: block; margin-top: 12rpx; font-size: 54rpx; font-weight: 650; line-height: 1.2; letter-spacing: -1rpx; }
 
 	.header-action {

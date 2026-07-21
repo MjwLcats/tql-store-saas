@@ -28,8 +28,6 @@
 						:src="item.selectedIcon"
 						mode="aspectFit"
 					/>
-					<text v-if="item.badge" class="tab-badge">{{ item.badge }}</text>
-					<view v-else-if="item.dot" class="tab-dot"></view>
 				</view>
 				<text class="tab-label">{{ item.text }}</text>
 			</button>
@@ -47,9 +45,9 @@
 			return {
 				tabs: [
 					{ text: '工作台', icon: '/static/icons/tabbar/workbench.png', selectedIcon: '/static/icons/tabbar/workbench-selected.png' },
-					{ text: '任务', icon: '/static/icons/tabbar/tasks.png', selectedIcon: '/static/icons/tabbar/tasks-selected.png', badge: '8' },
-					{ text: '消息', icon: '/static/icons/tabbar/messages.png', selectedIcon: '/static/icons/tabbar/messages-selected.png', badge: '3' },
-					{ text: '我的', icon: '/static/icons/tabbar/profile.png', selectedIcon: '/static/icons/tabbar/profile-selected.png', dot: true }
+					{ text: '任务', icon: '/static/icons/tabbar/tasks.png', selectedIcon: '/static/icons/tabbar/tasks-selected.png' },
+					{ text: '消息', icon: '/static/icons/tabbar/messages.png', selectedIcon: '/static/icons/tabbar/messages-selected.png' },
+					{ text: '我的', icon: '/static/icons/tabbar/profile.png', selectedIcon: '/static/icons/tabbar/profile-selected.png' }
 				]
 			}
 		},
@@ -171,37 +169,6 @@
 		color: #165dff;
 		font-weight: 600;
 		transform: translateY(-1rpx);
-	}
-
-	.tab-badge,
-	.tab-dot {
-		position: absolute;
-		z-index: 3;
-		top: -10rpx;
-		right: -18rpx;
-		box-sizing: border-box;
-		border: 3rpx solid #fff;
-		background: #ff3b30;
-	}
-
-	.tab-badge {
-		min-width: 34rpx;
-		height: 34rpx;
-		padding: 0 8rpx;
-		border-radius: 18rpx;
-		color: #fff;
-		font-size: 20rpx;
-		font-weight: 700;
-		line-height: 28rpx;
-		text-align: center;
-	}
-
-	.tab-dot {
-		top: -7rpx;
-		right: -10rpx;
-		width: 20rpx;
-		height: 20rpx;
-		border-radius: 50%;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
