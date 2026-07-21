@@ -127,9 +127,6 @@
 		onLoad() {
 			if (getSession()) uni.reLaunch({ url: '/pages/home/index' })
 		},
-		onShow() {
-			uni.hideTabBar({ animation: false })
-		},
 		methods: {
 			async handleLogin() {
 				if (this.loading) return

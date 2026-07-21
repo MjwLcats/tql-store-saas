@@ -3,10 +3,6 @@
 		<view class="tabbar">
 			<view
 				class="active-pill"
-				:class="[
-					{ 'active-pill--moving': moving },
-					`active-pill--${direction}`
-				]"
 				:style="pillStyle"
 			>
 				<view class="active-pill__shine"></view>
@@ -14,12 +10,12 @@
 
 			<button
 				v-for="(item, index) in tabs"
-				:key="item.url"
+				:key="item.text"
 				class="tab-item"
-				:class="{ 'tab-item--active': visualIndex === index }"
+				:class="{ 'tab-item--active': activeIndex === index }"
 				hover-class="none"
 				:aria-label="item.text"
-				@click="navigate(index)"
+				@click="select(index)"
 			>
 				<view class="tab-icon-wrap">
 					<image
@@ -49,59 +45,23 @@
 		},
 		data() {
 			return {
-				visualIndex: this.activeIndex,
-				moving: false,
-				direction: 'right',
-				navigationTimer: null,
 				tabs: [
-					{ text: '工作台', url: '/pages/home/index', icon: '/static/icons/tabbar/workbench.png', selectedIcon: '/static/icons/tabbar/workbench-selected.png' },
-					{ text: '任务', url: '/pages/tasks/index', icon: '/static/icons/tabbar/tasks.png', selectedIcon: '/static/icons/tabbar/tasks-selected.png', badge: '8' },
-					{ text: '消息', url: '/pages/messages/index', icon: '/static/icons/tabbar/messages.png', selectedIcon: '/static/icons/tabbar/messages-selected.png', badge: '3' },
-					{ text: '我的', url: '/pages/profile/index', icon: '/static/icons/tabbar/profile.png', selectedIcon: '/static/icons/tabbar/profile-selected.png', dot: true }
+					{ text: '工作台', icon: '/static/icons/tabbar/workbench.png', selectedIcon: '/static/icons/tabbar/workbench-selected.png' },
+					{ text: '任务', icon: '/static/icons/tabbar/tasks.png', selectedIcon: '/static/icons/tabbar/tasks-selected.png', badge: '8' },
+					{ text: '消息', icon: '/static/icons/tabbar/messages.png', selectedIcon: '/static/icons/tabbar/messages-selected.png', badge: '3' },
+					{ text: '我的', icon: '/static/icons/tabbar/profile.png', selectedIcon: '/static/icons/tabbar/profile-selected.png', dot: true }
 				]
 			}
 		},
 		computed: {
 			pillStyle() {
-				return { transform: `translate3d(${this.visualIndex * 100}%, 0, 0)` }
+				return { transform: `translate3d(${this.activeIndex * 100}%, 0, 0)` }
 			}
-		},
-		watch: {
-			activeIndex(index) {
-				if (!this.moving) this.visualIndex = index
-			}
-		},
-		mounted() {
-			uni.hideTabBar({ animation: false })
-		},
-		beforeDestroy() {
-			if (this.navigationTimer) clearTimeout(this.navigationTimer)
 		},
 		methods: {
-			sync(index) {
-				if (this.navigationTimer) {
-					clearTimeout(this.navigationTimer)
-					this.navigationTimer = null
-				}
-				this.moving = false
-				this.visualIndex = index
-			},
-			navigate(index) {
-				if (index === this.visualIndex || !this.tabs[index]) return
-				if (this.navigationTimer) {
-					clearTimeout(this.navigationTimer)
-					this.navigationTimer = null
-				}
-				this.direction = index > this.visualIndex ? 'right' : 'left'
-				this.moving = true
-				this.visualIndex = index
-
-				this.navigationTimer = setTimeout(() => {
-					uni.switchTab({
-						url: this.tabs[index].url,
-						fail: () => { this.moving = false }
-					})
-				}, 220)
+			select(index) {
+				if (index === this.activeIndex || !this.tabs[index]) return
+				this.$emit('change', index)
 			},
 		}
 	}
@@ -148,23 +108,6 @@
 		transition: transform 390ms cubic-bezier(0.22, 1.28, 0.36, 1), border-radius 180ms ease;
 		will-change: transform;
 	}
-
-	.active-pill::after {
-		content: '';
-		position: absolute;
-		top: 10%;
-		bottom: 10%;
-		width: 42%;
-		opacity: 0;
-		border-radius: 999rpx;
-		background: rgba(118, 118, 128, 0.1);
-		filter: blur(8rpx);
-		transition: opacity 110ms ease, transform 390ms cubic-bezier(0.22, 1.18, 0.36, 1);
-	}
-
-	.active-pill--right::after { right: 72%; transform: scaleX(0.4); transform-origin: right center; }
-	.active-pill--left::after { left: 72%; transform: scaleX(0.4); transform-origin: left center; }
-	.active-pill--moving::after { opacity: 1; transform: scaleX(1.65); }
 
 	.active-pill__shine {
 		position: absolute;
@@ -263,7 +206,6 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.active-pill,
-		.active-pill::after,
 		.tab-icon-wrap,
 		.tab-icon,
 		.tab-label { transition-duration: 1ms !important; }

@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "test": "node --test build/api-base-url.test.mjs"
+    "test": "node --test build/*.test.mjs"
   },
   "dependencies": {
     "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5010220260604001",

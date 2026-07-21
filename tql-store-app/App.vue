@@ -1,9 +1,7 @@
 <script>
 	export default {
 		onLaunch() {},
-		onShow() {
-			uni.hideTabBar({ animation: false })
-		},
+		onShow() {},
 		onHide() {}
 	}
 </script>

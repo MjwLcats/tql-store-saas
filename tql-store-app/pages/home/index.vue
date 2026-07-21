@@ -123,7 +123,7 @@
 			</view>
 			</view>
 		</view>
-		<app-tab-bar ref="appTab" :active-index="activeTab" />
+		<app-tab-bar :active-index="activeTab" @change="setActiveTab" />
 
 	</view>
 </template>
@@ -135,14 +135,10 @@
 
 	export default {
 		components: { AppTabBar },
-		props: {
-			initialTab: { type: Number, default: 0 },
-			initialSession: { type: Object, default: null }
-		},
 		data() {
 			return {
-				activeTab: this.initialTab,
-				session: this.initialSession,
+				activeTab: 0,
+				session: null,
 				taskFilter: 0,
 				messageFilter: 0,
 				storeName: '未选择门店',
@@ -171,10 +167,6 @@
 			this.session = getSession()
 			if (!this.session) uni.reLaunch({ url: '/pages/index/index' })
 		},
-		onShow() {
-			uni.hideTabBar({ animation: false })
-			this.$nextTick(() => this.syncTabBar())
-		},
 		async onPullDownRefresh() {
 			try {
 				// 当前页面接入真实接口后，可在这里并行刷新任务、消息和门店概览。
@@ -185,13 +177,14 @@
 			}
 		},
 		methods: {
-			syncTabBar() {
-			if (this.$refs.appTab) this.$refs.appTab.sync(this.activeTab)
-		},
-			goToTasks() {
-				this.$refs.appTab.navigate(1)
+			setActiveTab(index) {
+				if (!Number.isInteger(index) || index < 0 || index > 3 || index === this.activeTab) return
+				this.activeTab = index
 			},
-			openMessagesTab() { this.$refs.appTab.navigate(2) },
+			goToTasks() {
+				this.setActiveTab(1)
+			},
+			openMessagesTab() { this.setActiveTab(2) },
 			openTask(task) { uni.showToast({ title: `${task.title} · ${task.status}`, icon: 'none' }) },
 			readMessage(message) { message.unread = false; uni.showToast({ title: '已标记为已读', icon: 'none' }) },
 			showPending(label) { uni.showToast({ title: `${label}功能建设中`, icon: 'none' }) },
