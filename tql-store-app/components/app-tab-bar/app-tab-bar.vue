@@ -15,22 +15,12 @@
 				:key="item.text"
 				class="tab-item"
 				:class="{ 'tab-item--active': activeIndex === index }"
-				hover-class="none"
+				hover-class="tab-item--pressed"
+				hover-start-time="0"
+				hover-stay-time="80"
 				:aria-label="item.text"
 				@click="select(index)"
 			>
-				<view class="tab-icon-wrap">
-					<image
-						class="tab-icon tab-icon--idle"
-						:src="item.icon"
-						mode="aspectFit"
-					/>
-					<image
-						class="tab-icon tab-icon--active"
-						:src="item.selectedIcon"
-						mode="aspectFit"
-					/>
-				</view>
 				<text class="tab-label">{{ item.text }}</text>
 			</button>
 		</view>
@@ -46,10 +36,10 @@
 		data() {
 			return {
 				tabs: [
-					{ text: '首页', icon: '/static/icons/tabbar/home-outline.svg', selectedIcon: '/static/icons/tabbar/home-filled.svg' },
-					{ text: '任务', icon: '/static/icons/tabbar/task-outline.svg', selectedIcon: '/static/icons/tabbar/task-filled.svg' },
-					{ text: '应用', icon: '/static/icons/tabbar/apps-outline.svg', selectedIcon: '/static/icons/tabbar/apps-filled.svg' },
-					{ text: '我的', icon: '/static/icons/tabbar/profile-outline.svg', selectedIcon: '/static/icons/tabbar/profile-filled.svg' }
+					{ text: '首页' },
+					{ text: '任务' },
+					{ text: '应用' },
+					{ text: '我的' }
 				]
 			}
 		},
@@ -125,59 +115,38 @@
 		position: relative;
 		z-index: 2;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		min-width: 0;
 		height: 100%;
 		margin: 0;
-		padding: 2rpx 0 0;
+		padding: 0;
 		border: 0;
 		border-radius: 0;
 		background: transparent;
-		color: #5f6368;
+		color: #666a72;
 		line-height: 1;
 	}
 
 	.tab-item::after { display: none; }
 
-	.tab-icon-wrap {
-		position: relative;
-		width: 40rpx;
-		height: 40rpx;
-		transition: transform 180ms ease;
-	}
-
-	.tab-icon {
-		position: absolute;
-		inset: 0;
-		width: 40rpx;
-		height: 40rpx;
-		transition: opacity 160ms ease, transform 180ms ease;
-	}
-
-	.tab-icon--active { opacity: 0; transform: scale(0.88); }
-	.tab-item--active .tab-icon-wrap { transform: translateY(-1rpx); }
-	.tab-item--active .tab-icon--idle { opacity: 0; transform: scale(0.9); }
-	.tab-item--active .tab-icon--active { opacity: 1; transform: scale(1); }
-
 	.tab-label {
-		margin-top: 3rpx;
-		font-size: 20rpx;
-		font-weight: 500;
-		line-height: 1.05;
+		font-size: 28rpx;
+		font-weight: 400;
+		line-height: 1;
+		letter-spacing: 0.2rpx;
 		white-space: nowrap;
-		transition: color 160ms ease, font-weight 160ms ease;
+		transition: color 160ms ease, font-weight 160ms ease, opacity 120ms ease, transform 120ms ease;
 	}
 
 	.tab-item--active .tab-label {
 		color: #165dff;
-		font-weight: 500;
+		font-weight: 600;
 	}
 
+	.tab-item--pressed .tab-label { opacity: 0.68; transform: scale(0.96); }
+
 	@media (prefers-reduced-motion: reduce) {
-		.tab-icon-wrap,
-		.tab-icon,
 		.tab-label { transition-duration: 1ms !important; }
 	}
 </style>

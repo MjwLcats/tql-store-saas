@@ -5,14 +5,12 @@ import test from 'node:test'
 const tabBarSource = await readFile(new URL('../components/app-tab-bar/app-tab-bar.vue', import.meta.url), 'utf8')
 const homeSource = await readFile(new URL('../pages/home/index.vue', import.meta.url), 'utf8')
 
-test('tab bar uses the requested labels and two-state SVG icons', () => {
+test('tab bar uses the requested text-only labels', () => {
 	for (const label of ['首页', '任务', '应用', '我的']) {
 		assert.match(tabBarSource, new RegExp(`text: '${label}'`))
 	}
-	for (const icon of ['home', 'task', 'apps', 'profile']) {
-		assert.match(tabBarSource, new RegExp(`${icon}-outline\\.svg`))
-		assert.match(tabBarSource, new RegExp(`${icon}-filled\\.svg`))
-	}
+	assert.doesNotMatch(tabBarSource, /<image/)
+	assert.doesNotMatch(tabBarSource, /selectedIcon:/)
 	assert.match(homeSource, /\['首页', '任务', '应用', '我的'\]/)
 })
 
@@ -28,6 +26,6 @@ test('wechat-style bar is full width with no rounded capsule container', () => {
 	assert.match(tabBarSource, /border-top: 1rpx solid/)
 	assert.match(tabBarSource, /border-radius: 0;/)
 	assert.match(tabBarSource, /height: 96rpx;/)
-	assert.match(tabBarSource, /width: 40rpx;/)
-	assert.match(tabBarSource, /font-size: 20rpx;/)
+	assert.match(tabBarSource, /font-size: 28rpx;/)
+	assert.match(tabBarSource, /font-weight: 600;/)
 })
