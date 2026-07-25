@@ -6,9 +6,9 @@
       </a-card>
       <main class="user-main">
     <a-card class="search-card tql-search-card">
-      <div class="search-layout">
-        <a-form class="search-form" :model="query" label-align="left">
-          <div class="search-fields" :class="{ 'search-fields--platform': !isMerchant }">
+      <div class="search-layout tql-search-layout">
+        <a-form class="search-form tql-search-form" :model="query" label-align="left">
+          <div class="search-fields tql-search-fields">
             <a-form-item field="keyword" label="关键词">
               <a-input v-model="query.keyword" placeholder="账号、工号、姓名或手机号" allow-clear @press-enter="search" />
             </a-form-item>
@@ -23,7 +23,8 @@
             </a-form-item>
           </div>
         </a-form>
-        <div class="search-actions">
+        <a-divider class="tql-search-divider" direction="vertical" />
+        <div class="search-actions tql-search-actions">
           <a-space>
             <a-button type="primary" @click="search"><template #icon><IconSearch /></template>查询</a-button>
             <a-button @click="reset"><template #icon><IconRefresh /></template>重置</a-button>
@@ -372,18 +373,8 @@ async function remove(id: number) {
 .organization-card :deep(.arco-card-body) { height: 100%; min-height: 0; padding: var(--tql-card-padding); }
 .organization-card :deep(.organization-tree) { height: 100%; }
 .organization-card :deep(.tree-loading) { flex: 1; }
-.search-card { margin-bottom: var(--tql-card-gap); }
-.search-card :deep(.arco-card-body) { padding: var(--tql-card-padding); }
-.search-layout { display: flex; min-width: 0; align-items: flex-start; flex-wrap: nowrap; gap: var(--tql-space-4); }
-.search-form { min-width: 0; flex: 1 1 auto; }
-.search-fields { display: grid; min-width: 0; grid-template-columns: minmax(170px, 1.2fr) minmax(150px, 1fr) minmax(130px, .8fr); gap: var(--tql-space-3); }
-.search-fields--platform { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
-.search-form :deep(.arco-form-item) { margin-bottom: 0; }
-.search-form :deep(.arco-form-item-label-col) { width: auto !important; flex: 0 0 auto !important; padding-right: 8px; }
-.search-form :deep(.arco-form-item-label) { white-space: nowrap; }
 .general-card { min-height: 0; flex: 1; border-color: var(--tql-border); }
 .general-card :deep(.arco-card-body) { display: flex; height: 100%; min-height: 0; flex-direction: column; }
-.search-actions { flex: 0 0 auto; margin-left: auto; white-space: nowrap; text-align: right; }
 .table-toolbar { margin-bottom: 16px; }
 .table-actions { display: flex; align-items: center; justify-content: flex-end; }
 .record-total { color: var(--tql-text-tertiary); font-size: 12px; }

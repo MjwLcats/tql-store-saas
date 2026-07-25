@@ -8,7 +8,7 @@ const homeSource = await readFile(new URL('../pages/home/index.vue', import.meta
 const manifestSource = await readFile(new URL('../manifest.json', import.meta.url), 'utf8')
 
 test('app config exposes switchable company, home and auto API profiles', () => {
-	assert.match(configSource, /const ACTIVE_API_PROFILE = 'company'/)
+	assert.match(configSource, /const ACTIVE_API_PROFILE = 'auto'/)
 	assert.match(configSource, /company: 'http:\/\/10\.10\.5\.44:8080'/)
 	assert.match(configSource, /home: 'http:\/\/172\.20\.10\.6:8080'/)
 	assert.match(configSource, /auto: __TQL_API_BASE_URL__/)

@@ -79,10 +79,7 @@
           :selected-keys="selectedKeys"
           @menu-item-click="handleMenuClick"
         >
-          <a-menu-item v-for="item in store.menus" :key="item.path">
-            <template #icon><component :is="resolveIcon(item.icon)" /></template>
-            {{ item.name }}
-          </a-menu-item>
+          <SidebarMenuNode v-for="item in menuTree" :key="item.id" :item="item" />
         </a-menu>
       </div>
 
@@ -108,9 +105,7 @@
 import { computed, inject, onMounted } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import {
-  IconDashboard,
   IconExport,
-  IconFile,
   IconFullscreen,
   IconLanguage,
   IconMenuFold,
@@ -120,7 +115,6 @@ import {
   IconPalette,
   IconSearch,
   IconSettings,
-  IconSync,
   IconUser
 } from '@arco-design/web-vue/es/icon';
 import { useRoute, useRouter } from 'vue-router';
@@ -128,6 +122,8 @@ import { logout } from '@tql-store/api';
 import { clearToken, useAppStore } from '@tql-store/auth';
 import { APP_CONFIG_KEY } from '../context';
 import BrandMark from '../components/BrandMark.vue';
+import SidebarMenuNode from './SidebarMenuNode.vue';
+import type { MenuItem } from '@tql-store/shared';
 
 const config = inject(APP_CONFIG_KEY)!;
 const store = useAppStore();
@@ -136,8 +132,25 @@ const router = useRouter();
 
 const selectedKeys = computed(() => [route.path]);
 const avatarText = computed(() => store.profile?.displayName?.slice(0, 1) || '同');
-const iconMap: Record<string, unknown> = { IconDashboard, IconFile, IconUser, IconSettings, IconSync };
-const resolveIcon = (icon?: string) => iconMap[icon || ''] || IconDashboard;
+const menuTree = computed(() => {
+  const records = store.menus;
+  const map = new Map(records.map(item => [item.id, { ...item, children: [] as MenuItem[] }]));
+  const roots: MenuItem[] = [];
+  map.forEach(item => {
+    const parent = map.get(item.parentId);
+    if (parent) parent.children!.push(item);
+    else roots.push(item);
+  });
+  const sort = (nodes: MenuItem[]) => {
+    nodes.sort((a, b) => a.order - b.order || a.id - b.id);
+    nodes.forEach(node => sort(node.children || []));
+  };
+  sort(roots);
+  const filterEnabled = (nodes: MenuItem[]): MenuItem[] => nodes
+    .filter(item => item.status === 1 && item.visible === 1 && item.type !== 'BUTTON')
+    .map(item => ({ ...item, children: filterEnabled(item.children || []) }));
+  return filterEnabled(roots);
+});
 const utilityTools = [
   { name: '搜索', icon: IconSearch },
   { name: '多语言', icon: IconLanguage },
@@ -288,7 +301,8 @@ async function handleUserAction(value: string | number | Record<string, unknown>
 .menu-wrapper::-webkit-scrollbar { display: none; }
 .app-menu { width: 100%; background: var(--tql-bg-card); }
 .app-menu :deep(.arco-menu-inner) { overflow: visible; background: var(--tql-bg-card); }
-.app-menu :deep(.arco-menu-item) {
+.app-menu :deep(.arco-menu-item),
+.app-menu :deep(.arco-menu-inline-header) {
   height: 40px;
   margin: 0 8px 4px;
   padding: 0 12px;
@@ -298,7 +312,12 @@ async function handleUserAction(value: string | number | Record<string, unknown>
   line-height: 40px;
 }
 
-.app-menu :deep(.arco-menu-item:hover) { color: var(--tql-text-primary); background: var(--tql-bg-subtle); }
+.app-menu :deep(.arco-menu-inline-header) { padding-right: 28px; }
+.app-menu :deep(.arco-menu-item:hover),
+.app-menu :deep(.arco-menu-inline-header:hover) {
+  color: var(--tql-text-primary);
+  background: var(--tql-bg-subtle);
+}
 .app-menu :deep(.arco-menu-selected),
 .app-menu :deep(.arco-menu-selected:hover) { color: var(--tql-primary); background: var(--tql-bg-hover); }
 .app-menu :deep(.arco-menu-icon) { color: var(--tql-text-tertiary); font-size: 16px; }

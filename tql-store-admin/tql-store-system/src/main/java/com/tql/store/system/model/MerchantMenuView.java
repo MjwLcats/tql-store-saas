@@ -1,7 +1,8 @@
 package com.tql.store.system.model;
 
-public record MenuView(
+public record MerchantMenuView(
         Long id,
+        Long tenantId,
         Long parentId,
         String name,
         String type,
@@ -14,6 +15,7 @@ public record MenuView(
         String permission,
         int order,
         int visible,
-        int status
+        int status,
+        boolean systemBuiltin
 ) {
 }

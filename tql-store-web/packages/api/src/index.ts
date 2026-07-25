@@ -6,7 +6,11 @@ import type {
   ContentItem,
   ContentQuery,
   LoginResponse,
+  IconItem,
   MenuItem,
+  MerchantMenuItem,
+  MerchantMenuSavePayload,
+  MerchantOption,
   OrganizationOption,
   PageResult,
   RoleItem,
@@ -108,6 +112,34 @@ export const fetchStores = () =>
   request<StoreOption[]>({ method: 'GET', url: '/api/system/stores', params: { _t: Date.now() } });
 export const fetchOrganizations = () =>
   request<OrganizationOption[]>({ method: 'GET', url: '/api/system/organizations', params: { _t: Date.now() } });
+
+export const fetchMerchants = () =>
+  request<MerchantOption[]>({ method: 'GET', url: '/api/system/merchant-menus/merchants' });
+export const fetchMerchantMenus = (tenantId: number) =>
+  request<MerchantMenuItem[]>({ method: 'GET', url: '/api/system/merchant-menus', params: { tenantId, _t: Date.now() } });
+export const fetchMerchantMenu = (id: number, tenantId: number) =>
+  request<MerchantMenuItem>({ method: 'GET', url: `/api/system/merchant-menus/${id}`, params: { tenantId } });
+export const createMerchantMenu = (data: MerchantMenuSavePayload) =>
+  request<number>({ method: 'POST', url: '/api/system/merchant-menus', data });
+export const updateMerchantMenu = (id: number, data: MerchantMenuSavePayload) =>
+  request<void>({ method: 'PUT', url: `/api/system/merchant-menus/${id}`, data });
+export const updateMerchantMenuStatus = (id: number, tenantId: number, status: number) =>
+  request<void>({ method: 'PUT', url: `/api/system/merchant-menus/${id}/status`, params: { tenantId }, data: { status } });
+export const updateMerchantMenuVisibility = (id: number, tenantId: number, visible: number) =>
+  request<void>({ method: 'PUT', url: `/api/system/merchant-menus/${id}/visibility`, params: { tenantId }, data: { visible } });
+export const deleteMerchantMenu = (id: number, tenantId: number) =>
+  request<void>({ method: 'DELETE', url: `/api/system/merchant-menus/${id}`, params: { tenantId } });
+
+export const fetchIcons = (params?: { keyword?: string; category?: string; status?: number }) =>
+  request<IconItem[]>({ method: 'GET', url: '/api/system/icons', params });
+export const uploadIcon = (data: FormData) =>
+  request<number>({ method: 'POST', url: '/api/system/icons/upload', data });
+export const updateIcon = (id: number, data: { name: string; category: string; order: number }) =>
+  request<void>({ method: 'PUT', url: `/api/system/icons/${id}`, data });
+export const updateIconStatus = (id: number, status: number) =>
+  request<void>({ method: 'PUT', url: `/api/system/icons/${id}/status`, data: { status } });
+export const deleteIcon = (id: number) =>
+  request<void>({ method: 'DELETE', url: `/api/system/icons/${id}` });
 
 export const fetchSyncTasks = (params: SyncTaskQuery) =>
   request<PageResult<SyncTaskItem>>({ method: 'GET', url: '/api/integration/sync-tasks', params });

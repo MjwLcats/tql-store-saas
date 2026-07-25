@@ -52,12 +52,74 @@ export interface UserProfile {
 
 export interface MenuItem {
   id: number;
+  parentId: number;
   name: string;
+  type: 'DIRECTORY' | 'MENU' | 'BUTTON';
+  routeName?: string;
   path: string;
   componentKey: string;
   icon?: string;
+  iconId?: number;
+  iconSvg?: string;
   permission?: string;
   order: number;
+  visible: number;
+  status: number;
+  children?: MenuItem[];
+}
+
+export interface MerchantOption {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface MerchantMenuItem {
+  id: number;
+  tenantId: number;
+  parentId: number;
+  name: string;
+  type: 'DIRECTORY' | 'MENU' | 'BUTTON';
+  routeName?: string;
+  path?: string;
+  componentKey?: string;
+  icon?: string;
+  iconId?: number;
+  iconSvg?: string;
+  permission?: string;
+  order: number;
+  visible: number;
+  status: number;
+  systemBuiltin: boolean;
+  children?: MerchantMenuItem[];
+}
+
+export interface MerchantMenuSavePayload {
+  tenantId: number;
+  parentId: number;
+  name: string;
+  type: 'DIRECTORY' | 'MENU' | 'BUTTON';
+  routeName?: string;
+  path?: string;
+  componentKey?: string;
+  icon?: string;
+  iconId?: number;
+  permission?: string;
+  order: number;
+  visible: number;
+  status: number;
+}
+
+export interface IconItem {
+  id: number;
+  name: string;
+  code: string;
+  category: string;
+  sourceType: 'SYSTEM' | 'CUSTOM';
+  svgContent?: string;
+  status: number;
+  order: number;
+  usageCount: number;
 }
 
 export type ContentStatus = 'DRAFT' | 'PUBLISHED' | 'OFFLINE';

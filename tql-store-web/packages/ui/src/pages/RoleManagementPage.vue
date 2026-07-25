@@ -62,11 +62,20 @@
                     <span>已选择 {{ form.menuIds.length }} 项</span>
                     <a-space><a-link @click="selectAll">全选</a-link><a-link @click="form.menuIds = []">清空</a-link></a-space>
                   </div>
-                  <a-checkbox-group v-model="form.menuIds" class="permission-grid">
-                    <a-grid :cols="3" :col-gap="16" :row-gap="12">
-                      <a-grid-item v-for="menu in menus" :key="menu.id"><a-checkbox :value="menu.id">{{ menu.name }}</a-checkbox></a-grid-item>
-                    </a-grid>
-                  </a-checkbox-group>
+                  <div class="permission-grid">
+                    <a-tree
+                      v-model:checked-keys="form.menuIds"
+                      :data="menuTree"
+                      checkable
+                      default-expand-all
+                      check-strictly
+                    >
+                      <template #title="nodeData">
+                        <span>{{ nodeData.title }}</span>
+                        <small class="permission-code">{{ nodeData.permission || typeLabel(nodeData.type) }}</small>
+                      </template>
+                    </a-tree>
+                  </div>
                 </a-tab-pane>
                 <a-tab-pane key="data" title="数据权限" disabled />
                 <a-tab-pane key="fields" title="字段权限" disabled />
@@ -100,6 +109,32 @@ const query = reactive<{ keyword: string }>({ keyword: '' });
 const emptyForm = (): RoleSavePayload => ({ roleCode: '', roleName: '', status: 1, remark: '', menuIds: [] });
 const form = reactive<RoleSavePayload>(emptyForm());
 const activeRole = computed(() => records.value.find(role => role.id === editingId.value));
+const menuTree = computed(() => {
+  type PermissionNode = {
+    key: number;
+    title: string;
+    permission?: string;
+    type: MenuItem['type'];
+    parentId: number;
+    children: PermissionNode[];
+  };
+  const map = new Map(menus.value.map(item => [item.id, {
+    key: item.id,
+    title: item.name,
+    permission: item.permission,
+    type: item.type,
+    parentId: item.parentId,
+    children: [] as PermissionNode[]
+  }]));
+  const roots: PermissionNode[] = [];
+  map.forEach(item => {
+    const parent = map.get(item.parentId);
+    if (parent) parent.children!.push(item);
+    else roots.push(item);
+  });
+  return roots;
+});
+const typeLabel = (type: MenuItem['type']) => ({ DIRECTORY: '目录', MENU: '菜单', BUTTON: '按钮' }[type]);
 const rules = {
   roleName: [{ required: true, message: '请输入角色名称' }],
   roleCode: [{ required: true, message: '请输入角色编码' }, { match: /^[A-Z][A-Z0-9_]*$/, message: '仅支持大写字母、数字和下划线' }]
@@ -185,4 +220,5 @@ async function remove(id: number) {
 .permission-tabs { margin-top: var(--tql-space-2); }
 .permission-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--tql-space-4); color: var(--tql-text-secondary); }
 .permission-grid { display: block; padding: var(--tql-space-4); background: var(--tql-bg-subtle); border: 1px solid var(--tql-border); border-radius: var(--tql-radius-control); }
+.permission-code { margin-left: var(--tql-space-2); color: var(--tql-text-tertiary); font-family: Consolas, monospace; }
 </style>

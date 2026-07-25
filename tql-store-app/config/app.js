@@ -1,5 +1,5 @@
 // 在这里切换接口环境：'company'、'home' 或 'auto'。
-const ACTIVE_API_PROFILE = 'company'
+const ACTIVE_API_PROFILE = 'auto'
 
 export const apiProfiles = Object.freeze({
 	company: 'http://10.10.5.44:8080',

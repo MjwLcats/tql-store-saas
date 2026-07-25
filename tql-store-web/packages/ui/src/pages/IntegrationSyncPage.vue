@@ -1,25 +1,25 @@
 <template>
   <div class="container integration-sync-page">
-    <a-card class="search-card">
-      <a-row>
-        <a-col :flex="1">
+    <a-card class="search-card tql-search-card">
+      <div class="tql-search-layout">
+        <div class="tql-search-form-area">
           <a-form
-            class="search-form"
+            class="search-form tql-search-form"
             :model="query"
             :label-col-props="{ flex: '64px' }"
             :wrapper-col-props="{ flex: '1' }"
             label-align="left"
           >
-            <a-row :gutter="[32, 16]">
-              <a-col :flex="'360px'">
+            <div class="tql-search-fields">
+              <div class="tql-search-item">
                 <a-form-item field="provider" label="数据来源">
                   <a-select v-model="query.provider" placeholder="全部来源" allow-clear>
                     <a-option value="HUALALA">哗啦啦</a-option>
                     <a-option value="HR_BUTLER">人力管家</a-option>
                   </a-select>
                 </a-form-item>
-              </a-col>
-              <a-col :flex="'360px'">
+              </div>
+              <div class="tql-search-item">
                 <a-form-item field="dataType" label="数据类型">
                   <a-select v-model="query.dataType" placeholder="全部类型" allow-clear>
                     <a-option value="SHOP">门店数据</a-option>
@@ -30,8 +30,8 @@
                     <a-option value="USER">员工用户</a-option>
                   </a-select>
                 </a-form-item>
-              </a-col>
-              <a-col :flex="'360px'">
+              </div>
+              <div class="tql-search-item">
                 <a-form-item field="status" label="同步状态">
                   <a-select v-model="query.status" placeholder="全部状态" allow-clear>
                     <a-option value="PENDING">等待执行</a-option>
@@ -40,18 +40,18 @@
                     <a-option value="FAILED">失败</a-option>
                   </a-select>
                 </a-form-item>
-              </a-col>
-            </a-row>
+              </div>
+            </div>
           </a-form>
-        </a-col>
-        <a-divider class="search-divider" direction="vertical" />
-        <a-col :flex="'180px'" class="search-actions">
+        </div>
+        <a-divider class="search-divider tql-search-divider" direction="vertical" />
+        <div class="search-actions tql-search-actions">
           <a-space>
             <a-button type="primary" @click="search"><template #icon><IconSearch /></template>查询</a-button>
             <a-button @click="reset"><template #icon><IconRefresh /></template>重置</a-button>
           </a-space>
-        </a-col>
-      </a-row>
+        </div>
+      </div>
     </a-card>
 
     <a-card class="general-card tql-list-card">
@@ -443,12 +443,7 @@ function localDateString(date: Date) {
 
 <style scoped>
 .container { width: 100%; padding: 16px 20px 20px; }
-.search-card { margin-bottom: var(--tql-card-gap); border-color: var(--tql-border); border-radius: var(--tql-radius-card); box-shadow: none; }
-.search-form :deep(.arco-form-item) { margin-bottom: 0; }
-.search-form :deep(.arco-form-item-label-col) { width: auto !important; flex: 0 0 auto !important; padding-right: 8px; }
-.search-form :deep(.arco-form-item-label) { white-space: nowrap; }
-.search-divider { height: 32px; margin: 0 24px; }
-.search-actions { text-align: right; }
+.search-card { border-color: var(--tql-border); border-radius: var(--tql-radius-card); box-shadow: none; }
 .general-card { border-color: var(--tql-border); border-radius: var(--tql-radius-card); box-shadow: none; }
 .table-toolbar { margin-bottom: 16px; }
 .table-actions { display: flex; align-items: center; justify-content: flex-end; }

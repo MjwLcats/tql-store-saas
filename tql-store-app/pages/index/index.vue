@@ -3,12 +3,6 @@
 		<view class="ambient ambient--top" aria-hidden="true"></view>
 
 		<view class="login-main" role="main">
-			<view class="brand-lockup" aria-label="同庆楼门店运营平台">
-				<text class="brand-name">同庆楼</text>
-				<view class="brand-divider" aria-hidden="true"></view>
-				<text class="brand-product">门店运营平台</text>
-			</view>
-
 			<view class="login-panel">
 				<view class="welcome-block">
 					<text class="welcome-title">欢迎登录</text>
@@ -213,36 +207,8 @@
 		padding: calc(env(safe-area-inset-top) + 88rpx) 64rpx calc(env(safe-area-inset-bottom) + 88rpx);
 	}
 
-	.brand-lockup {
-		display: flex;
-		align-items: center;
-		height: 44rpx;
-	}
-
-	.brand-name {
-		color: var(--text);
-		font-size: 34rpx;
-		font-weight: 600;
-		line-height: 44rpx;
-		letter-spacing: 0;
-	}
-
-	.brand-divider {
-		width: 2rpx;
-		height: 28rpx;
-		margin: 0 20rpx;
-		background: var(--border);
-	}
-
-	.brand-product {
-		color: var(--muted);
-		font-size: 27rpx;
-		font-weight: 400;
-		line-height: 44rpx;
-	}
-
 	.login-panel {
-		margin-top: 160rpx;
+		margin-top: 204rpx;
 	}
 
 	.welcome-block {
@@ -403,7 +369,7 @@
 		}
 
 		.login-panel {
-			margin-top: 100rpx;
+			margin-top: 144rpx;
 		}
 
 		.login-form {

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { getToken } from '@tql-store/auth';
-import { AppShell, ContentPage, DashboardPage, LoginPage, ProfilePage, RoleManagementPage, UserManagementPage } from '@tql-store/ui';
+import { AppShell, ContentPage, DashboardPage, IconManagementPage, LoginPage, MenuManagementPage, ProfilePage, RoleManagementPage, UserManagementPage } from '@tql-store/ui';
 import { appConfig } from './config';
 
 export const router = createRouter({
@@ -13,6 +13,8 @@ export const router = createRouter({
         { path: 'content', name: 'content', component: ContentPage },
         { path: 'users', name: 'users', component: UserManagementPage },
         { path: 'roles', name: 'roles', component: RoleManagementPage },
+        { path: 'system/menus', name: 'menu-management', component: MenuManagementPage },
+        { path: 'system/icons', name: 'icon-management', component: IconManagementPage },
         { path: 'profile', name: 'profile', component: ProfilePage }
       ]
     },

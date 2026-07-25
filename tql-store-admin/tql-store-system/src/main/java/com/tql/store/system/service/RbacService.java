@@ -43,8 +43,12 @@ public class RbacService {
     }
 
     public void requirePermission(Long userId, Long tenantId, String clientType, String resource) {
+        requirePermissionCode(userId, tenantId, clientType,
+                permissionPrefix(clientType) + ":system:" + resource + ":view");
+    }
+
+    public void requirePermissionCode(Long userId, Long tenantId, String clientType, String permission) {
         ClientSchema schema = clientSchema(clientType);
-        String permission = permissionPrefix(clientType) + ":system:" + resource + ":view";
         String sql = schema.merchant() ? """
                 SELECT COUNT(*)
                 FROM sys_merchant_user_role ur
@@ -53,7 +57,7 @@ public class RbacService {
                  AND u.status = 1 AND u.login_enabled = 1 AND u.deleted = 0
                 JOIN sys_role r ON r.id = ur.role_id AND r.status = 1
                 JOIN sys_role_menu rm ON rm.role_id = r.id
-                JOIN sys_menu m ON m.id = rm.menu_id AND m.visible = 1
+                JOIN sys_menu m ON m.id = rm.menu_id AND m.status = 1 AND m.deleted = 0
                 WHERE ur.merchant_user_id = ? AND r.tenant_id = ? AND r.client_type = 'MERCHANT'
                   AND m.permission_code = ?
                 """ : """
@@ -63,7 +67,7 @@ public class RbacService {
                   ON u.id = ur.platform_user_id AND u.status = 1 AND u.deleted = 0
                 JOIN sys_role r ON r.id = ur.role_id AND r.status = 1
                 JOIN sys_role_menu rm ON rm.role_id = r.id
-                JOIN sys_menu m ON m.id = rm.menu_id AND m.visible = 1
+                JOIN sys_menu m ON m.id = rm.menu_id AND m.status = 1 AND m.deleted = 0
                 WHERE ur.platform_user_id = ? AND r.tenant_id = 0 AND r.client_type = 'PLATFORM'
                   AND m.permission_code = ?
                 """;
@@ -71,9 +75,25 @@ public class RbacService {
                 ? new Object[]{tenantId, userId, tenantId, permission}
                 : new Object[]{userId, permission};
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, params);
-        if (count == null || count == 0) {
+        if (count == null || count == 0 || !permissionBranchEnabled(tenantId, clientType, permission)) {
             throw new SecurityException("无权执行该操作");
         }
+    }
+
+    private boolean permissionBranchEnabled(Long tenantId, String clientType, String permission) {
+        Integer disabledCount = jdbcTemplate.queryForObject("""
+                WITH RECURSIVE menu_chain AS (
+                    SELECT id, parent_id, status, deleted
+                    FROM sys_menu
+                    WHERE tenant_id = ? AND client_type = ? AND permission_code = ?
+                    UNION ALL
+                    SELECT parent.id, parent.parent_id, parent.status, parent.deleted
+                    FROM sys_menu parent
+                    JOIN menu_chain child ON child.parent_id = parent.id
+                )
+                SELECT COUNT(*) FROM menu_chain WHERE status <> 1 OR deleted <> 0
+                """, Integer.class, tenantId, normalizeClient(clientType), permission);
+        return disabledCount != null && disabledCount == 0;
     }
 
     public PageResult<UserView> listUsers(
@@ -468,14 +488,16 @@ public class RbacService {
 
     public List<MenuView> listAssignableMenus(Long tenantId, String clientType) {
         return jdbcTemplate.query("""
-                SELECT id, menu_name, route_path, component_key, icon, permission_code, sort_order
+                SELECT id, parent_id, menu_name, menu_type, route_name, route_path,
+                       component_key, icon, permission_code, sort_order, visible, status
                 FROM sys_menu
-                WHERE tenant_id = ? AND client_type = ? AND visible = 1
+                WHERE tenant_id = ? AND client_type = ? AND deleted = 0
                 ORDER BY sort_order, id
                 """, (rs, rowNum) -> new MenuView(
-                rs.getLong("id"), rs.getString("menu_name"), rs.getString("route_path"),
-                rs.getString("component_key"), rs.getString("icon"),
-                rs.getString("permission_code"), rs.getInt("sort_order")
+                rs.getLong("id"), rs.getLong("parent_id"), rs.getString("menu_name"),
+                rs.getString("menu_type"), rs.getString("route_name"), rs.getString("route_path"),
+                rs.getString("component_key"), rs.getString("icon"), null, null, rs.getString("permission_code"),
+                rs.getInt("sort_order"), rs.getInt("visible"), rs.getInt("status")
         ), tenantId, normalizeClient(clientType));
     }
 

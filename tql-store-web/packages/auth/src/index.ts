@@ -55,13 +55,31 @@ export const useAppStore = defineStore('tql-store-app', {
   }
 });
 
+export function effectiveMenus(menus: MenuItem[]) {
+  const byId = new Map(menus.map(menu => [menu.id, menu]));
+  const enabled = (menu: MenuItem) => {
+    if (menu.status !== 1) return false;
+    let parentId = menu.parentId;
+    const visited = new Set<number>();
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId);
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      if (parent.status !== 1) return false;
+      parentId = parent.parentId;
+    }
+    return true;
+  };
+  return menus.filter(enabled);
+}
+
 export function usePermission(): {
   permissions: ComputedRef<Set<string>>;
   can: (required?: PermissionRequirement, mode?: PermissionMatchMode) => boolean;
 } {
   const store = useAppStore();
   const permissions = computed(() => new Set(
-    store.menus.map(menu => menu.permission).filter((value): value is string => Boolean(value))
+    effectiveMenus(store.menus).map(menu => menu.permission).filter((value): value is string => Boolean(value))
   ));
   return {
     permissions,

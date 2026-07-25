@@ -1,7 +1,7 @@
 package com.tql.store.system.model;
 
-public record MenuView(
-        Long id,
+public record MerchantMenuSaveRequest(
+        Long tenantId,
         Long parentId,
         String name,
         String type,
@@ -10,10 +10,9 @@ public record MenuView(
         String componentKey,
         String icon,
         Long iconId,
-        String iconSvg,
         String permission,
-        int order,
-        int visible,
-        int status
+        Integer order,
+        Integer visible,
+        Integer status
 ) {
 }

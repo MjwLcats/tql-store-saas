@@ -1,5 +1,5 @@
 import type { Directive, DirectiveBinding } from 'vue';
-import { evaluatePermission, useAppStore, type PermissionMatchMode, type PermissionRequirement } from '@tql-store/auth';
+import { effectiveMenus, evaluatePermission, useAppStore, type PermissionMatchMode, type PermissionRequirement } from '@tql-store/auth';
 
 export interface PermissionDirectiveValue {
   permission: PermissionRequirement;
@@ -11,7 +11,8 @@ function applyPermission(element: HTMLElement, binding: DirectiveBinding<Permiss
   const value = binding.value;
   const permission = typeof value === 'object' && !Array.isArray(value) ? value.permission : value;
   const mode = typeof value === 'object' && !Array.isArray(value) ? value.mode : 'any';
-  const granted = store.menus.map(menu => menu.permission).filter((item): item is string => Boolean(item));
+  const granted = effectiveMenus(store.menus)
+    .map(menu => menu.permission).filter((item): item is string => Boolean(item));
   element.hidden = !evaluatePermission(granted, permission, mode);
 }
 

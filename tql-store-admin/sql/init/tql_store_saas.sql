@@ -83,20 +83,28 @@ CREATE TABLE IF NOT EXISTS sys_user_store (
 ) ENGINE=InnoDB COMMENT='用户授权门店关联表';
 
 CREATE TABLE IF NOT EXISTS sys_menu (
-    id BIGINT PRIMARY KEY COMMENT '菜单ID',
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '菜单ID',
     tenant_id BIGINT NOT NULL DEFAULT 0 COMMENT '租户ID，0表示平台公共菜单',
     parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '父级菜单ID，0表示顶级菜单',
     menu_name VARCHAR(64) NOT NULL COMMENT '菜单名称',
-    route_name VARCHAR(64) NOT NULL COMMENT '前端路由名称',
-    route_path VARCHAR(128) NOT NULL COMMENT '前端路由路径',
-    component_key VARCHAR(64) NOT NULL COMMENT '前端组件标识',
+    menu_type VARCHAR(16) NOT NULL DEFAULT 'MENU' COMMENT '节点类型：DIRECTORY目录，MENU菜单，BUTTON按钮',
+    route_name VARCHAR(64) DEFAULT NULL COMMENT '前端路由名称',
+    route_path VARCHAR(128) DEFAULT NULL COMMENT '前端路由路径',
+    component_key VARCHAR(64) DEFAULT NULL COMMENT '前端组件标识',
     icon VARCHAR(64) COMMENT '菜单图标名称',
     permission_code VARCHAR(128) COMMENT '权限编码',
     client_type VARCHAR(16) NOT NULL COMMENT '客户端类型：PLATFORM平台端，MERCHANT商家端',
     sort_order INT NOT NULL DEFAULT 0 COMMENT '菜单排序号',
     visible TINYINT NOT NULL DEFAULT 1 COMMENT '是否显示：0隐藏，1显示',
-    UNIQUE KEY uk_menu_client_route (client_type, route_name),
-    KEY idx_menu_tenant (tenant_id)
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    system_builtin TINYINT NOT NULL DEFAULT 0 COMMENT '是否系统内置：0否，1是',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0正常，1删除',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_menu_tenant_route_name (tenant_id, client_type, route_name),
+    KEY idx_menu_tenant (tenant_id),
+    KEY idx_menu_parent (tenant_id, client_type, parent_id, deleted),
+    KEY idx_menu_permission (tenant_id, client_type, permission_code, deleted)
 ) ENGINE=InnoDB COMMENT='系统菜单表';
 
 CREATE TABLE IF NOT EXISTS ops_content (
@@ -240,27 +248,39 @@ ON DUPLICATE KEY UPDATE
     role_name = VALUES(role_name), status = VALUES(status), remark = VALUES(remark);
 
 INSERT INTO sys_menu
-    (id, tenant_id, parent_id, menu_name, route_name, route_path, component_key, icon, permission_code, client_type, sort_order, visible)
+    (id, tenant_id, parent_id, menu_name, menu_type, route_name, route_path, component_key,
+     icon, permission_code, client_type, sort_order, visible, status, system_builtin, deleted)
 VALUES
-    (100, 0, 0, '平台工作台', 'PlatformDashboard', '/dashboard', 'dashboard', 'IconDashboard', 'platform:dashboard:view', 'PLATFORM', 10, 1),
-    (101, 0, 0, '内容审查', 'PlatformContent', '/content', 'content', 'IconFile', 'platform:content:view', 'PLATFORM', 20, 1),
-    (103, 0, 0, '平台用户', 'PlatformUsers', '/users', 'users', 'IconUser', 'platform:system:user:view', 'PLATFORM', 30, 1),
-    (104, 0, 0, '平台角色', 'PlatformRoles', '/roles', 'roles', 'IconSettings', 'platform:system:role:view', 'PLATFORM', 40, 1),
-    (102, 0, 0, '个人中心', 'PlatformProfile', '/profile', 'profile', 'IconUser', 'profile:view', 'PLATFORM', 90, 1),
-    (200, 10001, 0, '商家工作台', 'MerchantDashboard', '/dashboard', 'dashboard', 'IconDashboard', 'merchant:dashboard:view', 'MERCHANT', 10, 1),
-    (201, 10001, 0, '内容管理', 'MerchantContent', '/content', 'content', 'IconFile', 'merchant:content:view', 'MERCHANT', 20, 1),
-    (203, 10001, 0, '用户管理', 'MerchantUsers', '/users', 'users', 'IconUser', 'merchant:system:user:view', 'MERCHANT', 30, 1),
-    (204, 10001, 0, '角色管理', 'MerchantRoles', '/roles', 'roles', 'IconSettings', 'merchant:system:role:view', 'MERCHANT', 40, 1),
-    (205, 10001, 0, '第三方数据同步', 'MerchantIntegrationSync', '/integration/sync', 'integration-sync', 'IconSync', 'merchant:integration:sync:view', 'MERCHANT', 50, 1),
-    (202, 10001, 0, '个人中心', 'MerchantProfile', '/profile', 'profile', 'IconUser', 'profile:view', 'MERCHANT', 90, 1)
+    (100, 0, 0, '平台工作台', 'MENU', 'PlatformDashboard', '/dashboard', 'dashboard', 'IconDashboard', 'platform:dashboard:view', 'PLATFORM', 10, 1, 1, 1, 0),
+    (101, 0, 0, '内容审查', 'MENU', 'PlatformContent', '/content', 'content', 'IconFile', 'platform:content:view', 'PLATFORM', 20, 1, 1, 1, 0),
+    (105, 0, 0, '系统管理', 'DIRECTORY', NULL, '/system', NULL, 'IconSettings', NULL, 'PLATFORM', 30, 1, 1, 1, 0),
+    (103, 0, 105, '平台用户', 'MENU', 'PlatformUsers', '/users', 'users', 'IconUser', 'platform:system:user:view', 'PLATFORM', 10, 1, 1, 1, 0),
+    (104, 0, 105, '平台角色', 'MENU', 'PlatformRoles', '/roles', 'roles', 'IconSettings', 'platform:system:role:view', 'PLATFORM', 20, 1, 1, 1, 0),
+    (106, 0, 105, '菜单管理', 'MENU', 'PlatformMenus', '/system/menus', 'menu-management', 'IconMenu', 'platform:system:menu:view', 'PLATFORM', 30, 1, 1, 1, 0),
+    (107, 0, 106, '新增菜单', 'BUTTON', NULL, NULL, NULL, NULL, 'platform:system:menu:create', 'PLATFORM', 10, 0, 1, 1, 0),
+    (108, 0, 106, '修改菜单', 'BUTTON', NULL, NULL, NULL, NULL, 'platform:system:menu:update', 'PLATFORM', 20, 0, 1, 1, 0),
+    (109, 0, 106, '删除菜单', 'BUTTON', NULL, NULL, NULL, NULL, 'platform:system:menu:delete', 'PLATFORM', 30, 0, 1, 1, 0),
+    (102, 0, 0, '个人中心', 'MENU', 'PlatformProfile', '/profile', 'profile', 'IconUser', 'profile:view', 'PLATFORM', 90, 1, 1, 1, 0),
+    (200, 10001, 0, '商家工作台', 'MENU', 'MerchantDashboard', '/dashboard', 'dashboard', 'IconDashboard', 'merchant:dashboard:view', 'MERCHANT', 10, 1, 1, 0, 0),
+    (201, 10001, 0, '内容管理', 'MENU', 'MerchantContent', '/content', 'content', 'IconFile', 'merchant:content:view', 'MERCHANT', 20, 1, 1, 0, 0),
+    (206, 10001, 0, '系统管理', 'DIRECTORY', NULL, '/system', NULL, 'IconSettings', NULL, 'MERCHANT', 30, 1, 1, 0, 0),
+    (203, 10001, 206, '用户管理', 'MENU', 'MerchantUsers', '/users', 'users', 'IconUser', 'merchant:system:user:view', 'MERCHANT', 10, 1, 1, 0, 0),
+    (204, 10001, 206, '角色管理', 'MENU', 'MerchantRoles', '/roles', 'roles', 'IconSettings', 'merchant:system:role:view', 'MERCHANT', 20, 1, 1, 0, 0),
+    (205, 10001, 0, '第三方数据同步', 'MENU', 'MerchantIntegrationSync', '/integration/sync', 'integration-sync', 'IconSync', 'merchant:integration:sync:view', 'MERCHANT', 50, 1, 1, 0, 0),
+    (202, 10001, 0, '个人中心', 'MENU', 'MerchantProfile', '/profile', 'profile', 'IconUser', 'profile:view', 'MERCHANT', 90, 1, 1, 0, 0)
 ON DUPLICATE KEY UPDATE
+    parent_id = VALUES(parent_id),
     menu_name = VALUES(menu_name),
+    menu_type = VALUES(menu_type),
     route_path = VALUES(route_path),
     component_key = VALUES(component_key),
     icon = VALUES(icon),
     permission_code = VALUES(permission_code),
     sort_order = VALUES(sort_order),
-    visible = VALUES(visible);
+    visible = VALUES(visible),
+    status = VALUES(status),
+    system_builtin = VALUES(system_builtin),
+    deleted = 0;
 
 INSERT IGNORE INTO sys_user_role (user_id, role_id)
 VALUES (1, 1001), (2, 2001);

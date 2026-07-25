@@ -69,23 +69,33 @@ public class SystemController {
         String userRoleTable = merchant ? "sys_merchant_user_role" : "sys_platform_user_role";
         String userIdColumn = merchant ? "merchant_user_id" : "platform_user_id";
         String sql = """
-                SELECT DISTINCT m.id, m.menu_name, m.route_path, m.component_key,
-                       m.icon, m.permission_code, m.sort_order
+                SELECT DISTINCT m.id, m.parent_id, m.menu_name, m.menu_type, m.route_name,
+                       m.route_path, m.component_key, m.icon, m.icon_id, i.svg_content AS icon_svg, m.permission_code,
+                       m.sort_order, m.visible, m.status
                 FROM sys_menu m
                 JOIN sys_role_menu rm ON rm.menu_id = m.id
+                LEFT JOIN sys_icon i ON i.id = m.icon_id
                 JOIN %s ur ON ur.role_id = rm.role_id
                 JOIN sys_role r ON r.id = ur.role_id AND r.status = 1
-                WHERE ur.%s = ? AND m.client_type = ? AND m.tenant_id = ? AND m.visible = 1
+                WHERE ur.%s = ? AND m.client_type = ? AND m.tenant_id = ?
+                  AND m.deleted = 0
                 ORDER BY m.sort_order, m.id
                 """.formatted(userRoleTable, userIdColumn);
         List<MenuView> menus = jdbcTemplate.query(sql, (rs, rowNum) -> new MenuView(
                 rs.getLong("id"),
+                rs.getLong("parent_id"),
                 rs.getString("menu_name"),
+                rs.getString("menu_type"),
+                rs.getString("route_name"),
                 rs.getString("route_path"),
                 rs.getString("component_key"),
                 rs.getString("icon"),
+                rs.getObject("icon_id", Long.class),
+                rs.getString("icon_svg"),
                 rs.getString("permission_code"),
-                rs.getInt("sort_order")
+                rs.getInt("sort_order"),
+                rs.getInt("visible"),
+                rs.getInt("status")
         ), userId, clientType, tenantId);
         return ApiResponse.success(menus);
     }
