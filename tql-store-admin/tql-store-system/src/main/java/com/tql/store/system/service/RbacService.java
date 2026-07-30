@@ -49,6 +49,12 @@ public class RbacService {
 
     public void requirePermissionCode(Long userId, Long tenantId, String clientType, String permission) {
         ClientSchema schema = clientSchema(clientType);
+        if (schema.merchant() && isMerchantAdmin(userId, tenantId)) {
+            if (!permissionBranchEnabled(tenantId, clientType, permission)) {
+                throw new SecurityException("无权执行该操作");
+            }
+            return;
+        }
         String sql = schema.merchant() ? """
                 SELECT COUNT(*)
                 FROM sys_merchant_user_role ur
@@ -80,6 +86,27 @@ public class RbacService {
         }
     }
 
+    private boolean isMerchantAdmin(Long userId, Long tenantId) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM sys_merchant_user_role ur
+                JOIN sys_merchant_user u
+                  ON u.id = ur.merchant_user_id
+                 AND u.tenant_id = ?
+                 AND u.status = 1
+                 AND u.login_enabled = 1
+                 AND u.deleted = 0
+                JOIN sys_role r
+                  ON r.id = ur.role_id
+                 AND r.tenant_id = ?
+                 AND r.client_type = 'MERCHANT'
+                 AND r.role_code = 'MERCHANT_ADMIN'
+                 AND r.status = 1
+                WHERE ur.merchant_user_id = ?
+                """, Integer.class, tenantId, tenantId, userId);
+        return count != null && count > 0;
+    }
+
     private boolean permissionBranchEnabled(Long tenantId, String clientType, String permission) {
         Integer disabledCount = jdbcTemplate.queryForObject("""
                 WITH RECURSIVE menu_chain AS (
@@ -98,7 +125,7 @@ public class RbacService {
 
     public PageResult<UserView> listUsers(
             Long tenantId, String clientType, String keyword, Integer status,
-            Long storeId, Long organizationId, int page, int pageSize) {
+            Boolean loginEnabled, Long storeId, Long organizationId, int page, int pageSize) {
         ClientSchema schema = clientSchema(clientType);
         int safePage = Math.max(page, 1);
         int safePageSize = Math.min(Math.max(pageSize, 1), 100);
@@ -117,6 +144,10 @@ public class RbacService {
             where.append(" AND u.status = :status ");
             params.addValue("status", status);
         }
+        if (schema.merchant() && loginEnabled != null) {
+            where.append(" AND u.login_enabled = :loginEnabled ");
+            params.addValue("loginEnabled", loginEnabled ? 1 : 0);
+        }
         if (schema.merchant() && storeId != null) {
             where.append(" AND EXISTS (SELECT 1 FROM sys_merchant_user_store usq "
                     + "WHERE usq.merchant_user_id = u.id AND usq.store_id = :storeId) ");
@@ -133,29 +164,34 @@ public class RbacService {
         params.addValue("offset", (safePage - 1) * safePageSize);
         params.addValue("pageSize", safePageSize);
         String sql = schema.merchant() ? """
-                SELECT u.id, u.username, u.employee_number, u.display_name,
+                SELECT u.id, u.username, u.employee_number, u.display_name, u.organization_id,
                        organization.org_name AS organization_name, u.email, u.phone,
                        u.login_enabled, u.source_type, u.status, u.data_scope,
-                       u.primary_store_id, store_record.store_name AS primary_store_name,
+                  u.primary_store_id, store_record.org_name AS primary_store_name,
+                       organization.org_name AS department,
+                       COALESCE(u.post_name, u.position_name) AS position,
                        GROUP_CONCAT(DISTINCT role_record.role_name ORDER BY role_record.role_name SEPARATOR ',') AS role_names
                 FROM sys_merchant_user u
                 LEFT JOIN sys_merchant_organization organization
                   ON organization.id = u.organization_id AND organization.tenant_id = u.tenant_id
-                LEFT JOIN sys_store store_record
-                  ON store_record.id = u.primary_store_id AND store_record.tenant_id = u.tenant_id
+           LEFT JOIN sys_merchant_organization store_record
+             ON store_record.id = u.primary_store_id
+            AND store_record.tenant_id = u.tenant_id
+            AND store_record.org_type = 'STORE'
                 LEFT JOIN sys_merchant_user_role user_role ON user_role.merchant_user_id = u.id
                 LEFT JOIN sys_role role_record
                   ON role_record.id = user_role.role_id AND role_record.tenant_id = u.tenant_id
                 """ + where + """
-                GROUP BY u.id, u.username, u.employee_number, u.display_name, organization.org_name,
+                GROUP BY u.id, u.username, u.employee_number, u.display_name, u.organization_id, organization.org_name,
                          u.email, u.phone, u.login_enabled, u.source_type, u.status, u.data_scope,
-                         u.primary_store_id, store_record.store_name
+                    u.primary_store_id, store_record.org_name, u.post_name, u.position_name
                 ORDER BY u.id DESC LIMIT :offset, :pageSize
                 """ : """
-                SELECT u.id, u.username, NULL AS employee_number, u.display_name,
+                SELECT u.id, u.username, NULL AS employee_number, u.display_name, u.organization_id,
                        organization.org_name AS organization_name, u.email, u.phone,
                        1 AS login_enabled, 'LOCAL' AS source_type, u.status, u.data_scope,
                        NULL AS primary_store_id, NULL AS primary_store_name,
+                       organization.org_name AS department, NULL AS position,
                        GROUP_CONCAT(DISTINCT role_record.role_name ORDER BY role_record.role_name SEPARATOR ',') AS role_names
                 FROM sys_platform_user u
                 LEFT JOIN sys_platform_organization organization ON organization.id = u.organization_id
@@ -163,7 +199,7 @@ public class RbacService {
                 LEFT JOIN sys_role role_record
                   ON role_record.id = user_role.role_id AND role_record.tenant_id = 0
                 """ + where + """
-                GROUP BY u.id, u.username, u.display_name, organization.org_name,
+                GROUP BY u.id, u.username, u.display_name, u.organization_id, organization.org_name,
                          u.email, u.phone, u.status, u.data_scope
                 ORDER BY u.id DESC LIMIT :offset, :pageSize
                 """;
@@ -172,6 +208,7 @@ public class RbacService {
                 rs.getString("username"),
                 rs.getString("employee_number"),
                 rs.getString("display_name"),
+                rs.getObject("organization_id", Long.class),
                 rs.getString("organization_name"),
                 rs.getString("email"),
                 rs.getString("phone"),
@@ -181,6 +218,8 @@ public class RbacService {
                 rs.getString("data_scope"),
                 rs.getObject("primary_store_id", Long.class),
                 rs.getString("primary_store_name"),
+                rs.getString("department"),
+                rs.getString("position"),
                 splitNames(rs.getString("role_names"))
         ));
         return new PageResult<>(records, total == null ? 0 : total, safePage, safePageSize);
@@ -429,13 +468,13 @@ public class RbacService {
 
     public List<StoreOption> listStores(Long tenantId) {
         return jdbcTemplate.query("""
-                SELECT id, parent_id, store_code, store_name
-                FROM sys_store
-                WHERE tenant_id = ? AND status = 1
+                SELECT id, parent_id, org_code, org_name
+                FROM sys_merchant_organization
+                WHERE tenant_id = ? AND org_type = 'STORE'
                 ORDER BY sort_order, id
                 """, (rs, rowNum) -> new StoreOption(
                 rs.getLong("id"), rs.getLong("parent_id"),
-                rs.getString("store_code"), rs.getString("store_name")
+                rs.getString("org_code"), rs.getString("org_name")
         ), tenantId);
     }
 
@@ -603,9 +642,15 @@ public class RbacService {
         if (ids.isEmpty()) return;
         MapSqlParameterSource params = new MapSqlParameterSource("tenantId", tenantId).addValue("ids", ids);
         Integer count = namedJdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM sys_store WHERE tenant_id = :tenantId AND status = 1 AND id IN (:ids)",
+                """
+                SELECT COUNT(*)
+                FROM sys_merchant_organization
+                WHERE tenant_id = :tenantId
+                  AND org_type = 'STORE'
+                  AND id IN (:ids)
+                """,
                 params, Integer.class);
-        if (count == null || count != ids.size()) throw new IllegalArgumentException("门店不属于当前租户或已停用");
+        if (count == null || count != ids.size()) throw new IllegalArgumentException("所选组织不是当前租户的门店组织");
     }
 
     private void replaceUserRoles(ClientSchema schema, Long userId, List<Long> roleIds) {

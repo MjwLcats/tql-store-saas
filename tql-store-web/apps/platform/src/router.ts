@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { getToken } from '@tql-store/auth';
-import { AppShell, ContentPage, DashboardPage, IconManagementPage, LoginPage, MenuManagementPage, ProfilePage, RoleManagementPage, UserManagementPage } from '@tql-store/ui';
+import { AiContentWorkspacePage, AppShell, DashboardPage, IconManagementPage, LoginPage, MenuManagementPage, ProfilePage, RoleManagementPage, UserManagementPage } from '@tql-store/ui';
 import { appConfig } from './config';
 
 export const router = createRouter({
@@ -10,7 +10,12 @@ export const router = createRouter({
     {
       path: '/', component: AppShell, redirect: '/dashboard', children: [
         { path: 'dashboard', name: 'dashboard', component: DashboardPage },
-        { path: 'content', name: 'content', component: ContentPage },
+        { path: 'content', redirect: '/content/plans' },
+        { path: 'content/plans', name: 'content-plans', component: AiContentWorkspacePage, props: { module: 'plans' } },
+        { path: 'content/calendar', name: 'content-calendar', component: AiContentWorkspacePage, props: { module: 'calendar' } },
+        { path: 'content/analytics', name: 'content-analytics', component: AiContentWorkspacePage, props: { module: 'analytics' } },
+        { path: 'content/accounts', name: 'content-accounts', component: AiContentWorkspacePage, props: { module: 'accounts' } },
+        { path: 'ai-content', redirect: '/content/plans' },
         { path: 'users', name: 'users', component: UserManagementPage },
         { path: 'roles', name: 'roles', component: RoleManagementPage },
         { path: 'system/menus', name: 'menu-management', component: MenuManagementPage },

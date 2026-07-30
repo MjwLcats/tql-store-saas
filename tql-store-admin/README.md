@@ -22,6 +22,17 @@ mysql --host=localhost --port=3306 --user=root --password=123456 --default-chara
 mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V006__repair_complete_chinese_comments.sql"
 mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V007__hr_butler_master_data.sql"
 mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V008__split_platform_merchant_user_rbac.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V013__content_activity_plan_employee_task.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V014__ai_content_menu_and_button_permissions.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V015__fix_merchant_dashboard_route.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V016__content_platform_account_crud.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V017__content_account_automatic_verification.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V018__content_video_performance_report.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V019__merchant_admin_all_permissions.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V020__content_personnel_import_permissions.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V021__content_storyboard_count.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V022__content_plan_edit_and_personnel_label.sql"
+mysql --host=localhost --port=3306 --user=root --password=123456 --default-character-set=utf8mb4 --execute="source D:/Project/tql-store-saas/tql-store-admin/sql/migration/V023__complete_ai_content_button_permissions.sql"
 ```
 
 当前本机数据库已执行上述迁移。第三方同步模块联调需要启动集成服务，并在修改网关路由后重新启动网关。

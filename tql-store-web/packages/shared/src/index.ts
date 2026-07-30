@@ -48,6 +48,7 @@ export interface UserProfile {
   email?: string;
   phone?: string;
   clientType: ClientType;
+  administrator?: boolean;
 }
 
 export interface MenuItem {
@@ -151,6 +152,146 @@ export interface ContentQuery {
   pageSize: number;
 }
 
+export type ContentActivityStatus = 'DRAFT' | 'ACTIVE' | 'TERMINATED';
+export type ContentPlanStatus = 'DRAFT' | 'ACTIVE' | 'ENDED' | 'TERMINATED';
+export type ContentCreationMode = 'STANDARD_TEMPLATE' | 'AI_ASSISTED' | 'SELF_CREATED';
+export type ContentTrainingPolicy = 'NONE' | 'REQUIRED' | 'DYNAMIC';
+
+export interface ContentActivityItem {
+  id: number;
+  name: string;
+  objective?: string;
+  startTime: string;
+  endTime: string;
+  status: ContentActivityStatus;
+  ownerId: number;
+  ownerName: string;
+  planCount: number;
+  employeeCount: number;
+  completedCount: number;
+  createdTime: string;
+}
+
+export interface ContentPlanItem {
+  id: number;
+  activityId: number;
+  name: string;
+  taskInstruction: string;
+  creationMode: ContentCreationMode;
+  storyboardCount: number;
+  trainingPolicy: ContentTrainingPolicy;
+  deadline: string;
+  status: ContentPlanStatus;
+  currentVersionNo: number;
+  employeeCount: number;
+}
+
+export interface CreateContentActivityPayload {
+  name: string;
+  objective?: string;
+  startTime: string;
+  endTime: string;
+  ownerId?: number;
+}
+
+export interface UpdateContentPlanPayload {
+  name: string;
+  objective?: string;
+  startTime: string;
+  endTime: string;
+  taskInstruction: string;
+  creationMode: string;
+  storyboardCount: number;
+  trainingPolicy: string;
+  employeeIds: number[];
+}
+
+export interface CreateContentPlanPayload {
+  activityId: number;
+  name: string;
+  taskInstruction: string;
+  creationMode: ContentCreationMode;
+  storyboardCount?: number;
+  trainingPolicy: ContentTrainingPolicy;
+  deadline: string;
+}
+
+export interface ContentPrecheckResult {
+  requestedCount: number;
+  eligibleCount: number;
+  duplicateCount: number;
+  unavailableCount: number;
+  failures: Array<{ employeeId: number; code: string; message: string }>;
+}
+
+export interface ContentPublishResult {
+  planId: number;
+  planVersionNo: number;
+  result: 'SUCCESS' | 'PARTIAL_SUCCESS';
+  createdCount: number;
+  failedCount: number;
+  failures: Array<{ employeeId: number; code: string; message: string }>;
+}
+
+export interface ContentDeliveryItem {
+  taskId: number;
+  employeeId: number;
+  employeeNumber?: string;
+  employeeName: string;
+  organizationName?: string;
+  storeName?: string;
+  stage: string;
+  createdTime: string;
+  deadline: string;
+  completionTime?: string;
+}
+
+export interface ContentAccountItem {
+  id: number;
+  platform: string;
+  accountName: string;
+  platformAccountId: string;
+  accountType: string;
+  organizationId?: number;
+  organizationName?: string;
+  employeeId: number;
+  employeeName: string;
+  employeeNumber?: string;
+  status: 'ACTIVE' | 'PENDING' | 'FAILED' | 'AUTH_EXPIRED' | 'DISABLED';
+  updateTime: string;
+}
+
+export interface ContentAccountPayload {
+  platform: string;
+  accountName: string;
+  platformAccountId: string;
+  accountType: string;
+  organizationId?: number;
+  employeeId: number;
+}
+
+export interface ContentVideoPerformanceItem {
+  id: number;
+  taskId?: number;
+  accountId: number;
+  accountName: string;
+  platform: string;
+  platformVideoId: string;
+  videoTitle: string;
+  videoUrl?: string;
+  publishTime: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  favoriteCount: number;
+  followerGain: number;
+  conversionCount: number;
+  transactionAmount: number;
+  syncStatus: string;
+  lastSyncTime?: string;
+}
+
 export type DataScope =
   | 'ALL'
   | 'DEPT_AND_CHILD'
@@ -200,6 +341,7 @@ export interface UserItem {
   username?: string;
   employeeNumber?: string;
   displayName: string;
+  organizationId?: number;
   organizationName?: string;
   email?: string;
   phone?: string;
@@ -209,7 +351,23 @@ export interface UserItem {
   dataScope: DataScope;
   primaryStoreId?: number;
   primaryStoreName?: string;
+  department?: string;
+  position?: string;
   roleNames: string[];
+}
+
+export interface PersonnelImportResult {
+  rowNumber: number;
+  inputName: string;
+  inputPhone: string;
+  userId?: number;
+  organizationStore: string;
+  name: string;
+  phone: string;
+  department: string;
+  position: string;
+  status: 'VALID' | 'INVALID' | 'DUPLICATE' | 'DUPLICATE_USER' | 'MISMATCH' | 'NOT_FOUND';
+  message: string;
 }
 
 export interface UserDetail {
@@ -248,6 +406,7 @@ export interface UserSavePayload {
 export interface UserQuery {
   keyword?: string;
   status?: number;
+  loginEnabled?: boolean;
   storeId?: number;
   organizationId?: number;
   page: number;

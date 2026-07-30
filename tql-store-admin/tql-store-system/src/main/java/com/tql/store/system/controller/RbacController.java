@@ -41,13 +41,14 @@ public class RbacController {
             @RequestHeader("X-Client-Type") String clientType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) Boolean loginEnabled,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) Long organizationId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int pageSize) {
         rbacService.requirePermission(operatorId, tenantId, clientType, "user");
         return ApiResponse.success(rbacService.listUsers(
-                tenantId, clientType, keyword, status, storeId, organizationId, page, pageSize));
+                tenantId, clientType, keyword, status, loginEnabled, storeId, organizationId, page, pageSize));
     }
 
     @GetMapping("/users/{id}")
@@ -58,6 +59,32 @@ public class RbacController {
             @RequestHeader("X-Client-Type") String clientType) {
         rbacService.requirePermission(operatorId, tenantId, clientType, "user");
         return ApiResponse.success(rbacService.getUser(id, tenantId, clientType));
+    }
+
+    @GetMapping("/users/content-task-options")
+    public ApiResponse<PageResult<UserView>> contentTaskUsers(
+            @RequestHeader("X-User-Id") Long operatorId,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "100") int pageSize) {
+        rbacService.requirePermission(
+                operatorId, tenantId, clientType, "merchant:content:plan:employee:select");
+        return ApiResponse.success(rbacService.listUsers(
+                tenantId, clientType, null, 1, true, null, null, page, pageSize));
+    }
+
+    @GetMapping("/users/content-account-options")
+    public ApiResponse<PageResult<UserView>> contentAccountUsers(
+            @RequestHeader("X-User-Id") Long operatorId,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "100") int pageSize) {
+        rbacService.requirePermission(
+                operatorId, tenantId, clientType, "merchant:content:account:view");
+        return ApiResponse.success(rbacService.listUsers(
+                tenantId, clientType, null, 1, true, null, null, page, pageSize));
     }
 
     @PostMapping("/users")
@@ -152,6 +179,26 @@ public class RbacController {
             @RequestHeader("X-Tenant-Id") Long tenantId,
             @RequestHeader("X-Client-Type") String clientType) {
         rbacService.requirePermission(operatorId, tenantId, clientType, "user");
+        return ApiResponse.success(rbacService.listOrganizations(tenantId, clientType));
+    }
+
+    @GetMapping("/organizations/content-task-options")
+    public ApiResponse<List<OrganizationOption>> contentTaskOrganizations(
+            @RequestHeader("X-User-Id") Long operatorId,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-Client-Type") String clientType) {
+        rbacService.requirePermission(
+                operatorId, tenantId, clientType, "merchant:content:plan:employee:select");
+        return ApiResponse.success(rbacService.listOrganizations(tenantId, clientType));
+    }
+
+    @GetMapping("/organizations/content-account-options")
+    public ApiResponse<List<OrganizationOption>> contentAccountOrganizations(
+            @RequestHeader("X-User-Id") Long operatorId,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-Client-Type") String clientType) {
+        rbacService.requirePermission(
+                operatorId, tenantId, clientType, "merchant:content:account:view");
         return ApiResponse.success(rbacService.listOrganizations(tenantId, clientType));
     }
 

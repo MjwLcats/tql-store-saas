@@ -52,8 +52,8 @@
 					<button v-for="(label, index) in taskFilters" :key="label" class="segment-item" :class="{ 'segment-item--active': taskFilter === index }" @click="taskFilter = index">{{ label }}</button>
 				</view>
 
-				<view v-if="tasks.length" class="list-card task-list-card">
-					<button v-for="task in tasks" :key="task.id" class="task-row task-row--large" hover-class="list-row--pressed" @click="openTask(task)">
+				<view v-if="filteredTasks.length" class="list-card task-list-card">
+					<button v-for="task in filteredTasks" :key="task.id" class="task-row task-row--large" hover-class="list-row--pressed" @click="openTask(task)">
 						<view class="task-status" :class="`task-status--${task.tone}`"></view>
 						<view class="task-copy">
 							<view class="task-line"><text class="task-title">{{ task.title }}</text><text class="task-tag">{{ task.status }}</text></view>
@@ -81,6 +81,27 @@
 				</view>
 
 				<view class="application-card">
+					<view class="application-card__header">
+						<text class="application-card__title">营销增长</text>
+						<text class="application-card__meta">4 个应用</text>
+					</view>
+					<view class="application-grid">
+						<button
+							v-for="item in marketingApps"
+							:key="item.label"
+							class="application-item"
+							hover-class="application-item--pressed"
+							@click="openApplication(item)"
+						>
+							<view class="application-icon" :class="`application-icon--${item.tone}`">
+								<image :src="item.icon" mode="aspectFit" />
+							</view>
+							<text class="application-label">{{ item.label }}</text>
+						</button>
+					</view>
+				</view>
+
+				<view class="application-card application-card--spaced">
 					<view class="application-card__header">
 						<text class="application-card__title">巡检管理</text>
 						<text class="application-card__meta">4 个应用</text>
@@ -131,7 +152,9 @@
 
 <script>
 	import { logout } from '@/api/auth.js'
+	import { fetchContentTasks } from '@/api/content-tasks.js'
 	import { clearSession, getSession } from '@/utils/auth.js'
+	import { formatDeadline, stageTone } from '@/utils/content-task.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
 
 	export default {
@@ -145,7 +168,14 @@
 				taskFilters: ['待处理', '进行中', '已完成'],
 				metrics: [],
 				tasks: [],
+				marketingApps: [
+					{ label: 'AI短视频', icon: '/static/icons/tabbar/task-filled.svg', tone: 'blue' },
+					{ label: '账号绑定', icon: '/static/icons/user.svg', tone: 'cyan' },
+					{ label: '发布记录', icon: '/static/icons/tabbar/task-outline.svg', tone: 'amber' },
+					{ label: '素材规范', icon: '/static/icons/nav/notification.svg', tone: 'red' }
+				],
 				inspectionApps: [
+					{ label: '库存盘点', icon: '/static/icons/tabbar/task-filled.svg', tone: 'blue' },
 					{ label: '巡店任务', icon: '/static/icons/tabbar/task-filled.svg', tone: 'blue' },
 					{ label: '门店自检', icon: '/static/icons/merchant.svg', tone: 'cyan' },
 					{ label: '检查记录', icon: '/static/icons/tabbar/task-outline.svg', tone: 'amber' },
@@ -164,17 +194,27 @@
 			tenantName() { return this.session?.user?.tenantName || '当前组织' },
 			displayName() { return this.session?.user?.displayName || '当前用户' },
 			username() { return this.session?.user?.username || '—' },
-			avatarText() { return this.displayName.slice(0, 1) }
+			avatarText() { return this.displayName.slice(0, 1) },
+			filteredTasks() {
+				const category = ['TODO', 'PROCESSING', 'COMPLETED'][this.taskFilter]
+				return this.tasks.filter(task => task.category === category)
+			}
 		},
-		onLoad() {
+		onLoad(options = {}) {
 			this.session = getSession()
+			const requestedTab = Number(options.tab)
+			if (Number.isInteger(requestedTab) && requestedTab >= 0 && requestedTab <= 4) this.activeTab = requestedTab
 			if (!this.session) uni.reLaunch({ url: '/pages/index/index' })
+			else this.loadContentTasks()
+		},
+		onShow() {
+			if (this.session) this.loadContentTasks()
 		},
 		async onPullDownRefresh() {
 			try {
 				// 当前页面接入真实接口后，可在这里并行刷新任务、消息和门店概览。
 				this.session = getSession()
-				await new Promise(resolve => setTimeout(resolve, 450))
+				await this.loadContentTasks()
 			} finally {
 				uni.stopPullDownRefresh()
 			}
@@ -185,10 +225,36 @@
 				this.activeTab = index
 			},
 			goToTasks() {
-				this.setActiveTab(2)
+				uni.navigateTo({ url: '/pages/content-tasks/index?category=TODO' })
 			},
-			openTask(task) { uni.showToast({ title: `${task.title} · ${task.status}`, icon: 'none' }) },
-			openApplication(item) { this.showPending(item.label) },
+			openTask(task) { uni.navigateTo({ url: `/pages/content-tasks/detail?id=${task.id}` }) },
+			async loadContentTasks() {
+				try {
+					const records = await fetchContentTasks({ category: 'ALL', pageSize: 50 })
+					this.tasks = records.map(task => ({
+						...task,
+						title: task.planName,
+						status: task.stageLabel,
+						description: task.actionHint,
+						owner: task.activityName,
+						time: formatDeadline(task.deadline),
+						tone: stageTone(task.stage)
+					}))
+				} catch (error) {
+					this.tasks = []
+				}
+			},
+			openApplication(item) {
+				if (item.label === '库存盘点') {
+					uni.navigateTo({ url: '/pages/inventory/index' })
+					return
+				}
+				if (item.label === 'AI短视频') {
+					uni.navigateTo({ url: '/pages/content-tasks/index' })
+					return
+				}
+				this.showPending(item.label)
+			},
 			showPending(label) { uni.showToast({ title: `${label}功能建设中`, icon: 'none' }) },
 			handleLogout() {
 				uni.showModal({
@@ -368,6 +434,7 @@
 		background: rgba(255, 255, 255, .96);
 		box-shadow: 0 10rpx 30rpx rgba(29, 33, 41, .045);
 	}
+	.application-card--spaced { margin-top: 26rpx; }
 	.application-card__header { display: flex; align-items: center; justify-content: space-between; padding: 29rpx 30rpx 18rpx; }
 	.application-card__title { font-size: 29rpx; font-weight: 600; }
 	.application-card__meta { color: var(--muted); font-size: 21rpx; }

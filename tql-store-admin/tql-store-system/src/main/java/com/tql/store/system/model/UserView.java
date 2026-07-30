@@ -7,6 +7,7 @@ public record UserView(
         String username,
         String employeeNumber,
         String displayName,
+        Long organizationId,
         String organizationName,
         String email,
         String phone,
@@ -16,6 +17,8 @@ public record UserView(
         String dataScope,
         Long primaryStoreId,
         String primaryStoreName,
+        String department,
+        String position,
         List<String> roleNames
 ) {
 }

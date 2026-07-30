@@ -92,6 +92,13 @@ public class MenuManagementService {
         }, keyHolder);
         Number key = keyHolder.getKey();
         if (key == null) throw new IllegalStateException("菜单创建失败");
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+                SELECT id, ?
+                FROM sys_role
+                WHERE tenant_id = ? AND client_type = 'MERCHANT'
+                  AND role_code = 'MERCHANT_ADMIN' AND status = 1
+                """, key.longValue(), input.tenantId());
         return key.longValue();
     }
 

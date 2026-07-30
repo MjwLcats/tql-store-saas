@@ -77,6 +77,7 @@
           class="app-menu"
           :collapsed="store.collapsed"
           :selected-keys="selectedKeys"
+          v-model:open-keys="openKeys"
           @menu-item-click="handleMenuClick"
         >
           <SidebarMenuNode v-for="item in menuTree" :key="item.id" :item="item" />
@@ -102,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import {
   IconExport,
@@ -130,7 +131,13 @@ const store = useAppStore();
 const route = useRoute();
 const router = useRouter();
 
-const selectedKeys = computed(() => [route.path]);
+const normalizePath = (path?: string) => {
+  if (!path) return '/';
+  const normalized = path.replace(/\/+$/, '');
+  return normalized || '/';
+};
+const selectedKeys = computed(() => [normalizePath(route.path)]);
+const openKeys = ref<string[]>([]);
 const avatarText = computed(() => store.profile?.displayName?.slice(0, 1) || '同');
 const menuTree = computed(() => {
   const records = store.menus;
@@ -157,7 +164,34 @@ const utilityTools = [
   { name: '主题模式', icon: IconMoon }
 ];
 
+watch(
+  [() => route.path, () => store.menus],
+  () => {
+    const currentPath = normalizePath(route.path);
+    const records = store.menus;
+    const currentMenu = records.find(item =>
+      item.type === 'MENU' && normalizePath(item.path) === currentPath
+    );
+    if (!currentMenu) return;
+
+    const byId = new Map(records.map(item => [item.id, item]));
+    const ancestorKeys: string[] = [];
+    const visited = new Set<number>();
+    let parentId = currentMenu.parentId;
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId);
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      if (parent.type === 'DIRECTORY') ancestorKeys.unshift(`directory-${parent.id}`);
+      parentId = parent.parentId;
+    }
+    openKeys.value = ancestorKeys;
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
+  if (import.meta.env.DEV && route.query.preview === '1') return;
   try {
     await store.loadContext();
   } catch (error) {

@@ -4,6 +4,17 @@ import type {
   ChangePasswordPayload,
   ClientType,
   ContentItem,
+  ContentAccountItem,
+  ContentAccountPayload,
+  ContentVideoPerformanceItem,
+  ContentDeliveryItem,
+  ContentActivityItem,
+  ContentPlanItem,
+  ContentPrecheckResult,
+  ContentPublishResult,
+  CreateContentActivityPayload,
+  UpdateContentPlanPayload,
+  CreateContentPlanPayload,
   ContentQuery,
   LoginResponse,
   IconItem,
@@ -13,6 +24,7 @@ import type {
   MerchantOption,
   OrganizationOption,
   PageResult,
+  PersonnelImportResult,
   RoleItem,
   RoleSavePayload,
   StoreOption,
@@ -72,6 +84,11 @@ async function request<T>(config: AxiosRequestConfig): Promise<T> {
   return response.data.data;
 }
 
+async function requestBlob(config: AxiosRequestConfig): Promise<Blob> {
+  const response = await http.request<Blob>({ ...config, responseType: 'blob' });
+  return response.data;
+}
+
 export const login = (username: string, password: string, clientType: ClientType, merchantNo?: string) =>
   request<LoginResponse>({
     method: 'POST',
@@ -87,8 +104,79 @@ export const fetchMenus = () => request<MenuItem[]>({ method: 'GET', url: '/api/
 export const fetchContents = (params: ContentQuery) =>
   request<PageResult<ContentItem>>({ method: 'GET', url: '/api/operation/contents', params });
 
+export const fetchContentAccounts = () =>
+  request<ContentAccountItem[]>({ method: 'GET', url: '/api/operation/content-accounts' });
+export const createContentAccount = (data: ContentAccountPayload) =>
+  request<number>({ method: 'POST', url: '/api/operation/content-accounts', data });
+export const updateContentAccount = (id: number, data: ContentAccountPayload) =>
+  request<void>({ method: 'PUT', url: `/api/operation/content-accounts/${id}`, data });
+export const importContentAccounts = (records: ContentAccountPayload[]) =>
+  request<number>({ method: 'POST', url: '/api/operation/content-accounts/import', data: { records } });
+export const deleteContentAccounts = (ids: number[]) =>
+  request<void>({ method: 'POST', url: '/api/operation/content-accounts/delete', data: { ids } });
+export const fetchContentVideoPerformance = () =>
+  request<ContentVideoPerformanceItem[]>({
+    method: 'GET',
+    url: '/api/operation/content-reports/video-performance'
+  });
+
+export const fetchContentActivities = (params?: { keyword?: string; status?: string }) =>
+  request<ContentActivityItem[]>({ method: 'GET', url: '/api/operation/marketing-activities', params });
+export const terminateContentActivity = (activityId: number) =>
+  request<void>({ method: 'POST', url: `/api/operation/marketing-activities/${activityId}/terminate` });
+export const updateContentActivity = (activityId: number, data: UpdateContentPlanPayload) =>
+  request<void>({ method: 'PUT', url: `/api/operation/marketing-activities/${activityId}`, data });
+export const createContentActivity = (data: CreateContentActivityPayload) =>
+  request<number>({ method: 'POST', url: '/api/operation/marketing-activities', data });
+export const fetchActivityPlans = (activityId: number) =>
+  request<ContentPlanItem[]>({
+    method: 'GET',
+    url: `/api/operation/marketing-activities/${activityId}/content-plans`
+  });
+export const fetchContentDeliveryTasks = (activityId: number) =>
+  request<ContentDeliveryItem[]>({
+    method: 'GET',
+    url: `/api/operation/marketing-activities/${activityId}/employee-tasks`
+  });
+export const createContentPlan = (data: CreateContentPlanPayload) =>
+  request<number>({ method: 'POST', url: '/api/operation/content-plans', data });
+export const uploadContentSampleVideo = (file: File) => {
+  const data = new FormData();
+  data.append('file', file);
+  return request<{ url: string; originalName: string; size: number }>({
+    method: 'POST',
+    url: '/api/operation/content-assets/sample-videos',
+    data
+  });
+};
+export const precheckContentPlan = (planId: number, employeeIds: number[]) =>
+  request<ContentPrecheckResult>({
+    method: 'POST',
+    url: `/api/operation/content-plans/${planId}/precheck`,
+    data: { employeeIds }
+  });
+export const publishContentPlan = (planId: number, employeeIds: number[], idempotencyKey: string) =>
+  request<ContentPublishResult>({
+    method: 'POST',
+    url: `/api/operation/content-plans/${planId}/publish`,
+    headers: { 'X-Idempotency-Key': idempotencyKey },
+    data: { employeeIds }
+  });
+
 export const fetchUsers = (params: UserQuery) =>
   request<PageResult<UserItem>>({ method: 'GET', url: '/api/system/users', params: { ...params, _t: Date.now() } });
+export const fetchContentTaskUsers = (page = 1, pageSize = 100) =>
+  request<PageResult<UserItem>>({
+    method: 'GET',
+    url: '/api/system/users/content-task-options',
+    params: { page, pageSize, _t: Date.now() }
+  });
+export const fetchContentAccountUsers = (page = 1, pageSize = 100) =>
+  request<PageResult<UserItem>>({
+    method: 'GET',
+    url: '/api/system/users/content-account-options',
+    params: { page, pageSize, _t: Date.now() }
+  });
 export const fetchUser = (id: number) =>
   request<UserDetail>({ method: 'GET', url: `/api/system/users/${id}` });
 export const createUser = (data: UserSavePayload) =>
@@ -112,6 +200,29 @@ export const fetchStores = () =>
   request<StoreOption[]>({ method: 'GET', url: '/api/system/stores', params: { _t: Date.now() } });
 export const fetchOrganizations = () =>
   request<OrganizationOption[]>({ method: 'GET', url: '/api/system/organizations', params: { _t: Date.now() } });
+export const fetchContentTaskOrganizations = () =>
+  request<OrganizationOption[]>({
+    method: 'GET',
+    url: '/api/system/organizations/content-task-options',
+    params: { _t: Date.now() }
+  });
+export const downloadPersonnelImportTemplate = () =>
+  requestBlob({ method: 'GET', url: '/api/system/content-personnel-import/template' });
+export const validatePersonnelImport = (file: File) => {
+  const data = new FormData();
+  data.append('file', file);
+  return request<PersonnelImportResult[]>({
+    method: 'POST',
+    url: '/api/system/content-personnel-import/validate',
+    data
+  });
+};
+export const fetchContentAccountOrganizations = () =>
+  request<OrganizationOption[]>({
+    method: 'GET',
+    url: '/api/system/organizations/content-account-options',
+    params: { _t: Date.now() }
+  });
 
 export const fetchMerchants = () =>
   request<MerchantOption[]>({ method: 'GET', url: '/api/system/merchant-menus/merchants' });
@@ -149,3 +260,141 @@ export const retrySyncTask = (id: number) =>
   request<number>({ method: 'POST', url: `/api/integration/sync-tasks/${id}/retry` });
 export const fetchSyncLogs = (id: number) =>
   request<SyncLogItem[]>({ method: 'GET', url: `/api/integration/sync-tasks/${id}/logs` });
+
+export interface CostUnit {
+  id: number;
+  unitCode: string;
+  unitName: string;
+  decimalScale: number;
+  status: number;
+}
+
+export interface CostMaterial {
+  id: number;
+  materialCode: string;
+  materialName: string;
+  specification?: string;
+  baseUnitId: number;
+  externalMaterialCode?: string;
+  sourceSystem: string;
+  status: number;
+}
+
+export interface CostDish {
+  id: number;
+  dishCode: string;
+  dishName: string;
+  externalDishCode?: string;
+  sourceSystem: string;
+  status: number;
+}
+
+export interface SyncFoodPrice {
+  foodPrice: string;
+  unit: string;
+}
+
+export interface SyncFoodCandidate {
+  foodID: number;
+  shopID: number;
+  foodCode: string;
+  foodName: string;
+  foodPrices?: SyncFoodPrice[];
+  [key: string]: unknown;
+}
+
+export interface SyncFoodPage {
+  rows: SyncFoodCandidate[];
+  total: number;
+}
+
+export interface SyncFoodSourceShop {
+  relateid: number;
+  deptName: string;
+}
+
+export interface CostBom {
+  id: number;
+  storeId: number;
+  dishId: number;
+  status: 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'DISABLED';
+  currentVersion: number;
+  rowVersion: number;
+  updatedTime: string;
+}
+export interface CostBomDetail {
+  id: number; storeId: number; dishId: number; status: CostBom['status'];
+  bomVersion: number; rowVersion: number; remark?: string; updatedTime: string;
+  items: Array<{ id: number; materialId: number; unitId: number; quantity: number; sortOrder: number }>;
+}
+
+export interface InventoryTask {
+  id: number;
+  storeId: number;
+  taskCode: string;
+  taskName: string;
+  status: string;
+  plannedStartTime: string;
+  plannedEndTime: string;
+  version: number;
+}
+export interface InventoryCountItem {
+  snapshotId: number; materialCode: string; materialName: string; specification?: string;
+  locationName: string; unitName: string; bookQuantity: number; countedQuantity?: number;
+}
+
+export const fetchCostUnits = () =>
+  request<CostUnit[]>({ method: 'GET', url: '/api/cost/master-data/units' });
+export const createCostUnit = (data: { unitCode: string; unitName: string; decimalScale: number }) =>
+  request<number>({ method: 'POST', url: '/api/cost/master-data/units', data });
+export const fetchCostMaterials = () =>
+  request<CostMaterial[]>({ method: 'GET', url: '/api/cost/master-data/materials' });
+export const createCostMaterial = (data: {
+  materialCode: string; materialName: string; specification?: string;
+  baseUnitId: number; externalMaterialCode?: string; sourceSystem: string;
+}) => request<number>({ method: 'POST', url: '/api/cost/master-data/materials', data });
+export const fetchCostDishes = () =>
+  request<CostDish[]>({ method: 'GET', url: '/api/cost/master-data/dishes' });
+export const fetchSyncFoodCandidates = (params: {
+  shopId: number; foodCode?: string; foodName?: string; pageNum: number; pageSize: number;
+}) => request<SyncFoodPage>({ method: 'GET', url: '/api/cost/foods/sync-candidates', params });
+export const fetchSyncFoodSourceShops = () =>
+  request<SyncFoodSourceShop[]>({ method: 'GET', url: '/api/cost/foods/source-shops' });
+export const saveSelectedSyncFoods = (rows: SyncFoodCandidate[]) =>
+  request<number>({ method: 'POST', url: '/api/cost/foods/sync-selected', data: rows });
+export const saveAllSyncFoods = (data: { shopId: number; foodCode?: string; foodName?: string }) =>
+  request<number>({ method: 'POST', url: '/api/cost/foods/sync-all', data });
+export const createCostDish = (data: {
+  dishCode: string; dishName: string; externalDishCode?: string; sourceSystem: string;
+}) => request<number>({ method: 'POST', url: '/api/cost/master-data/dishes', data });
+export const fetchCostBoms = (storeId: number) =>
+  request<CostBom[]>({ method: 'GET', url: '/api/cost/boms', params: { storeId } });
+export const createCostBom = (data: {
+  storeId: number; dishId: number; remark?: string;
+  items: Array<{ materialId: number; unitId: number; quantity: number; sortOrder: number }>;
+}) => request<number>({ method: 'POST', url: '/api/cost/boms', data });
+export const fetchCostBomDetail = (id: number) =>
+  request<CostBomDetail>({ method: 'GET', url: `/api/cost/boms/${id}` });
+export const updateCostBom = (id: number, data: {
+  expectedVersion: number; remark?: string;
+  items: Array<{ materialId: number; unitId: number; quantity: number; sortOrder: number }>;
+}) => request<void>({ method: 'PUT', url: `/api/cost/boms/${id}`, data });
+export const submitCostBom = (id: number, expectedVersion: number) =>
+  request<void>({ method: 'POST', url: `/api/cost/boms/${id}/submit`, data: { expectedVersion } });
+export const publishCostBom = (id: number, expectedVersion: number) =>
+  request<void>({ method: 'POST', url: `/api/cost/boms/${id}/publish`, data: { expectedVersion } });
+export const rejectCostBom = (id: number, expectedVersion: number, remark?: string) =>
+  request<void>({ method: 'POST', url: `/api/cost/boms/${id}/reject`, data: { expectedVersion, remark } });
+export const fetchInventoryTasks = (storeId: number) =>
+  request<InventoryTask[]>({ method: 'GET', url: '/api/cost/inventory-tasks', params: { storeId } });
+export const createInventoryTask = (data: {
+  storeId: number; taskName: string; plannedStartTime: string; plannedEndTime: string; remark?: string;
+}) => request<number>({ method: 'POST', url: '/api/cost/inventory-tasks', data });
+export const fetchInventoryTaskItems = (id: number) =>
+  request<InventoryCountItem[]>({ method: 'GET', url: `/api/cost/inventory-tasks/${id}/items` });
+export const approveInventoryTask = (id: number, expectedVersion: number, remark?: string) =>
+  request<void>({ method: 'POST', url: `/api/cost/inventory-tasks/${id}/approve`, data: { expectedVersion, remark } });
+export const rejectInventoryTask = (id: number, expectedVersion: number, remark?: string) =>
+  request<void>({ method: 'POST', url: `/api/cost/inventory-tasks/${id}/reject`, data: { expectedVersion, remark } });
+export const closeInventoryTask = (id: number, expectedVersion: number) =>
+  request<void>({ method: 'POST', url: `/api/cost/inventory-tasks/${id}/close`, data: { expectedVersion } });

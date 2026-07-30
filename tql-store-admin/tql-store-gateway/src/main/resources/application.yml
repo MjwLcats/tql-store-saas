@@ -42,6 +42,10 @@ spring:
           uri: ${INTEGRATION_SERVICE_URI:http://127.0.0.1:9206}
           predicates:
             - Path=/api/integration/**
+        - id: tql-store-cost
+          uri: ${COST_SERVICE_URI:http://127.0.0.1:9210}
+          predicates:
+            - Path=/api/cost/**
 
 management:
   endpoints:

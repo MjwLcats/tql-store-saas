@@ -3,9 +3,12 @@ import { getToken } from '@tql-store/auth';
 import { fetchMenus } from '@tql-store/api';
 import {
   AppShell,
-  ContentPage,
+  AiContentWorkspacePage,
+  CostBomPage,
+  CostMasterDataPage,
   DashboardPage,
   IntegrationSyncPage,
+  InventoryTaskPage,
   LoginPage,
   ProfilePage,
   RoleManagementPage,
@@ -18,23 +21,38 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginPage, meta: { public: true } },
     {
-      path: '/', name: 'root', component: AppShell, children: []
-    },
-    { path: '/:pathMatch(.*)*', redirect: '/' }
+      path: '/', name: 'root', component: AppShell, children: [
+        { path: 'cost/boms', name: 'MerchantCostBom', component: CostBomPage },
+        { path: 'cost/inventory-tasks', name: 'MerchantInventoryTasks', component: InventoryTaskPage },
+        { path: 'cost/master-data', name: 'MerchantCostMasterData', component: CostMasterDataPage }
+      ]
+    }
   ]
 });
 
 const componentRegistry = {
   dashboard: DashboardPage,
-  content: ContentPage,
+  content: AiContentWorkspacePage,
+  'ai-content': AiContentWorkspacePage,
   users: UserManagementPage,
   roles: RoleManagementPage,
   'integration-sync': IntegrationSyncPage,
-  profile: ProfilePage
+  profile: ProfilePage,
+  MerchantCostBom: CostBomPage,
+  MerchantInventoryTasks: InventoryTaskPage,
+  MerchantCostMasterData: CostMasterDataPage
+} as const;
+
+const aiContentModuleByPath = {
+  '/content/plans': 'plans',
+  '/content/calendar': 'calendar',
+  '/content/analytics': 'analytics',
+  '/content/accounts': 'accounts'
 } as const;
 let routesReady = false;
 
 router.beforeEach(async (to) => {
+  if (import.meta.env.DEV && to.query.preview === '1') return true;
   const token = getToken(appConfig.clientType);
   if (!to.meta.public && !token) return { path: '/login', query: { redirect: to.fullPath } };
   if (token && !routesReady) {
@@ -47,13 +65,19 @@ router.beforeEach(async (to) => {
           path: menu.path.replace(/^\//, ''),
           name: menu.routeName || `merchant-menu-${menu.id}`,
           component,
+          props: menu.componentKey === 'ai-content'
+            ? { module: aiContentModuleByPath[menu.path as keyof typeof aiContentModuleByPath] || 'plans' }
+            : undefined,
           meta: { permission: menu.permission }
         });
-      });
+    });
     routesReady = true;
-    return to.path === '/' || to.path === '/login' ? '/dashboard' : to.fullPath;
+    return to.path === '/' || to.path === '/login'
+      ? { path: '/dashboard', replace: true }
+      : { path: to.fullPath, replace: true };
   }
   if (to.path === '/login' && token) return '/dashboard';
   if (to.path === '/') return token ? '/dashboard' : '/login';
+  if (routesReady && to.matched.length === 0) return { path: '/dashboard', replace: true };
   return true;
 });

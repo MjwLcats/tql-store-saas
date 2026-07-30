@@ -44,6 +44,16 @@ public class SystemController {
                 WHERE u.id = ? AND u.status = 1 AND u.deleted = 0
                 """;
         Object[] params = merchant ? new Object[]{userId, tenantId} : new Object[]{userId};
+        String userRoleTable = merchant ? "sys_merchant_user_role" : "sys_platform_user_role";
+        String userIdColumn = merchant ? "merchant_user_id" : "platform_user_id";
+        boolean administrator = Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) > 0
+                FROM %s ur
+                JOIN sys_role r ON r.id = ur.role_id
+                WHERE ur.%s = ?
+                  AND r.status = 1
+                  AND UPPER(r.role_code) IN ('ADMIN', 'MERCHANT_ADMIN', 'SUPER_ADMIN')
+                """.formatted(userRoleTable, userIdColumn), Boolean.class, userId));
         UserProfile profile = jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new UserProfile(
                 rs.getLong("id"),
                 rs.getLong("tenant_id"),
@@ -55,7 +65,8 @@ public class SystemController {
                 rs.getString("display_name"),
                 rs.getString("email"),
                 rs.getString("phone"),
-                rs.getString("client_type")
+                rs.getString("client_type"),
+                administrator
         ), params);
         return ApiResponse.success(profile);
     }
@@ -68,7 +79,26 @@ public class SystemController {
         boolean merchant = "MERCHANT".equalsIgnoreCase(clientType);
         String userRoleTable = merchant ? "sys_merchant_user_role" : "sys_platform_user_role";
         String userIdColumn = merchant ? "merchant_user_id" : "platform_user_id";
-        String sql = """
+        boolean merchantAdmin = merchant && Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) > 0
+                FROM sys_merchant_user_role ur
+                JOIN sys_role r
+                  ON r.id = ur.role_id
+                 AND r.tenant_id = ?
+                 AND r.client_type = 'MERCHANT'
+                 AND r.role_code = 'MERCHANT_ADMIN'
+                 AND r.status = 1
+                WHERE ur.merchant_user_id = ?
+                """, Boolean.class, tenantId, userId));
+        String sql = merchantAdmin ? """
+                SELECT m.id, m.parent_id, m.menu_name, m.menu_type, m.route_name,
+                       m.route_path, m.component_key, m.icon, m.icon_id, i.svg_content AS icon_svg, m.permission_code,
+                       m.sort_order, m.visible, m.status
+                FROM sys_menu m
+                LEFT JOIN sys_icon i ON i.id = m.icon_id
+                WHERE m.client_type = 'MERCHANT' AND m.tenant_id = ? AND m.deleted = 0
+                ORDER BY m.sort_order, m.id
+                """ : """
                 SELECT DISTINCT m.id, m.parent_id, m.menu_name, m.menu_type, m.route_name,
                        m.route_path, m.component_key, m.icon, m.icon_id, i.svg_content AS icon_svg, m.permission_code,
                        m.sort_order, m.visible, m.status
@@ -96,7 +126,7 @@ public class SystemController {
                 rs.getInt("sort_order"),
                 rs.getInt("visible"),
                 rs.getInt("status")
-        ), userId, clientType, tenantId);
+        ), merchantAdmin ? new Object[]{tenantId} : new Object[]{userId, clientType, tenantId});
         return ApiResponse.success(menus);
     }
 }

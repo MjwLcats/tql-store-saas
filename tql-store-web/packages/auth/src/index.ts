@@ -83,6 +83,7 @@ export function usePermission(): {
   ));
   return {
     permissions,
-    can: (required, mode = 'any') => evaluatePermission(permissions.value, required, mode)
+    can: (required, mode = 'any') => Boolean(store.profile?.administrator)
+      || evaluatePermission(permissions.value, required, mode)
   };
 }

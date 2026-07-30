@@ -46,6 +46,42 @@
           }
         }
       }
+    },
+    {
+      "path": "pages/content-tasks/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "内容任务",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/content-tasks/detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "任务详情",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
+      "path": "pages/inventory/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "盘点任务",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/inventory/count",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "盘点录入",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false
+      }
     }
   ],
   "globalStyle": {

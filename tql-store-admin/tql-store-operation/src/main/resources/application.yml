@@ -3,6 +3,10 @@ server:
 spring:
   application:
     name: tql-store-operation
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 205MB
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:tql_store_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${MYSQL_USERNAME:root}

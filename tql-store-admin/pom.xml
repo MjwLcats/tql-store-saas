@@ -30,6 +30,7 @@
         <module>tql-store-file</module>
         <module>tql-store-message</module>
         <module>tql-store-scheduler</module>
+        <module>tql-store-cost</module>
     </modules>
 
     <properties>

@@ -11,6 +11,7 @@ public record UserProfile(
         String displayName,
         String email,
         String phone,
-        String clientType
+        String clientType,
+        boolean administrator
 ) {
 }
