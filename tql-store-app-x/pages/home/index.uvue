@@ -1,0 +1,669 @@
+<template>
+	<view class="app-shell">
+		<view class="top-wash" aria-hidden="true"></view>
+
+		<view class="page-main">
+			<view class="tab-stage">
+			<view v-if="activeTab === 0" key="workbench" class="tab-page" data-testid="panel-workbench">
+				<view class="welcome-row">
+					<view>
+						<text class="welcome-title">早上好，{{ displayName }}</text>
+					<text class="welcome-date">{{ currentDate }} · {{ storeName }}</text>
+					</view>
+				</view>
+
+				<view v-if="metrics.length" class="section-heading">
+					<text class="section-title">门店概览</text>
+					<text class="section-link">实时数据</text>
+				</view>
+				<view v-if="metrics.length" class="metric-grid">
+					<view v-for="metric in metrics" :key="metric.label" class="metric-card">
+						<text class="metric-value">{{ metric.value }}</text>
+						<text class="metric-label">{{ metric.label }}</text>
+						<text class="metric-trend" :class="{ 'metric-trend--warn': metric.warn }">{{ metric.trend }}</text>
+					</view>
+				</view>
+
+				<view class="section-heading section-heading--tasks">
+					<text class="section-title">今日任务</text>
+					<button class="section-link-button" hover-class="link-pressed" @click="goToTasks">查看全部</button>
+				</view>
+				<view v-if="tasks.length" class="list-card">
+					<button v-for="task in tasks.slice(0, 3)" :key="task.id" class="task-row" hover-class="list-row--pressed" @click="openTask(task)">
+						<view class="task-status" :class="`task-status--${task.tone}`"></view>
+						<view class="task-copy">
+							<view class="task-line"><text class="task-title">{{ task.title }}</text><text class="task-type">{{ task.type }}</text></view>
+							<text class="task-description">{{ task.description }}</text>
+							<text class="task-meta">{{ task.owner }} · 截止 {{ task.time }}</text>
+						</view>
+						<text class="task-tag">{{ task.status }}</text>
+					</button>
+				</view>
+				<view v-else class="empty-card"><text>暂无真实任务数据</text></view>
+			</view>
+
+			<view v-else-if="activeTab === 2" key="tasks" class="tab-page" data-testid="panel-tasks">
+				<view class="task-summary">
+					<view><text class="summary-number">{{ pendingTaskCount }}</text><text class="summary-unit">项</text></view>
+					<text class="summary-title">待完成短视频任务</text>
+					<text class="summary-subtitle">后管发布计划下发后，在这里完成拍摄、发布和回传</text>
+				</view>
+
+				<view class="segment-control">
+					<button v-for="(label, index) in taskFilters" :key="label" class="segment-item" :class="{ 'segment-item--active': taskFilter === index }" @click="taskFilter = index">{{ label }}</button>
+				</view>
+
+				<view class="task-search">
+					<image class="task-search-icon" src="/static/icons/nav/search.svg" mode="aspectFit" />
+					<input v-model="taskKeyword" class="task-search-input" type="text" placeholder="搜索任务名称、话题或平台" placeholder-class="task-search-placeholder" />
+				</view>
+
+				<view v-if="selectedTask != null" class="task-detail-card">
+					<view class="task-detail-header">
+						<view class="task-detail-copy">
+							<text class="task-detail-kicker">{{ getSelectedTaskField('type') }} · {{ getSelectedTaskField('platform') }}</text>
+							<text class="task-detail-title">{{ getSelectedTaskField('title') }}</text>
+							<text class="task-detail-meta">任务时间 {{ getSelectedTaskField('dateRange') }}</text>
+						</view>
+						<button class="detail-close-button" hover-class="link-pressed" @click="closeTaskDetail">收起</button>
+					</view>
+					<view class="workflow-card">
+						<view v-for="(step, index) in videoTaskSteps" :key="step" class="workflow-step">
+							<view class="workflow-dot" :class="{ 'workflow-dot--active': index <= selectedTaskStep }"></view>
+							<view class="workflow-copy">
+								<text class="workflow-title">{{ step }}</text>
+								<text class="workflow-desc">{{ getStepDescription(index) }}</text>
+							</view>
+						</view>
+					</view>
+					<view class="task-info-grid">
+						<view class="task-info-item">
+							<text class="task-info-label">拍摄要求</text>
+							<text class="task-info-value">{{ getSelectedTaskField('requirement') }}</text>
+						</view>
+						<view class="task-info-item">
+							<text class="task-info-label">发布话题</text>
+							<text class="task-info-value">{{ getSelectedTaskField('topic') }}</text>
+						</view>
+						<view class="task-info-item">
+							<text class="task-info-label">当前进度</text>
+							<text class="task-info-value">{{ getSelectedTaskField('progress') }}</text>
+						</view>
+					</view>
+					<button class="primary-action-button" hover-class="primary-action-button--pressed" @click="continueSelectedTask">继续完成</button>
+				</view>
+
+				<view v-if="filteredTasks.length" class="list-card task-list-card">
+					<button v-for="task in filteredTasks" :key="task.id" class="task-row task-row--large" hover-class="list-row--pressed" @click="openTask(task)">
+						<view class="task-status" :class="`task-status--${task.tone}`"></view>
+						<view class="task-copy">
+							<view class="task-line"><text class="task-title">{{ task.title }}</text><text class="task-tag">{{ task.action }}</text></view>
+							<text class="task-description">{{ task.description }}</text>
+							<view class="task-meta-row">
+								<text class="task-meta">{{ task.type }} · {{ task.platform }}</text>
+								<text class="task-meta">{{ task.dateRange }}</text>
+							</view>
+						</view>
+					</button>
+				</view>
+				<view v-else class="empty-card"><text>暂无任务</text></view>
+			</view>
+
+			<view v-else-if="activeTab === 1" key="analysis" class="tab-page" data-testid="panel-analysis">
+				<view class="analysis-card">
+					<text class="analysis-kicker">经营数据</text>
+					<text class="analysis-title">分析中心</text>
+					<text class="analysis-description">经营指标与趋势分析将在数据接口接入后展示</text>
+				</view>
+				<view class="empty-card"><text>暂无可用分析数据</text></view>
+			</view>
+
+			<view v-else-if="activeTab === 3" key="applications" class="tab-page app-workbench" data-testid="panel-applications">
+				<view class="workbench-intro">
+					<text class="workbench-title">工作台</text>
+					<text class="workbench-subtitle">常用业务功能集中入口</text>
+				</view>
+
+				<view class="application-card">
+					<view class="application-card__header">
+						<text class="application-card__title">营销增长</text>
+						<text class="application-card__meta">4 个应用</text>
+					</view>
+					<view class="application-grid">
+						<button
+							v-for="item in videoApps"
+							:key="item.label"
+							class="application-item"
+							hover-class="application-item--pressed"
+							@click="openApplication(item)"
+						>
+							<view class="application-icon" :class="`application-icon--${item.tone}`">
+								<image class="application-icon-image" :src="item.icon" mode="aspectFit" />
+							</view>
+							<text class="application-label">{{ item.label }}</text>
+						</button>
+					</view>
+				</view>
+
+				<view class="application-card application-card--spaced">
+					<view class="application-card__header">
+						<text class="application-card__title">巡检管理</text>
+						<text class="application-card__meta">4 个应用</text>
+					</view>
+					<view class="application-grid">
+						<button
+							v-for="item in inspectionApps"
+							:key="item.label"
+							class="application-item"
+							hover-class="application-item--pressed"
+							@click="openApplication(item)"
+						>
+							<view class="application-icon" :class="`application-icon--${item.tone}`">
+								<image class="application-icon-image" :src="item.icon" mode="aspectFit" />
+							</view>
+							<text class="application-label">{{ item.label }}</text>
+						</button>
+					</view>
+				</view>
+			</view>
+
+			<view v-else key="profile" class="tab-page" data-testid="panel-profile">
+				<view class="profile-card">
+					<view class="profile-avatar">{{ avatarText }}</view>
+					<view class="profile-copy"><text class="profile-name">{{ displayName }}</text><text class="profile-account">{{ username }} · 门店管理员</text></view>
+					<image class="profile-arrow" src="/static/icons/nav/right.svg" mode="aspectFit" />
+				</view>
+
+				<view class="store-card">
+					<text class="store-card-label">当前门店</text>
+					<text class="store-card-title">{{ storeName }}</text>
+					<text class="store-card-meta">{{ tenantName }}</text>
+				</view>
+
+				<view class="settings-card">
+					<button v-for="item in profileItems" :key="item.label" class="settings-row" hover-class="list-row--pressed" @click="showPending(item.label)">
+						<text class="settings-label">{{ item.label }}</text><text class="settings-value">{{ item.value }}</text><image class="settings-arrow" src="/static/icons/nav/right.svg" mode="aspectFit" />
+					</button>
+				</view>
+				<button class="logout-button" hover-class="logout-button--pressed" @click="handleLogout">退出登录</button>
+			</view>
+			</view>
+		</view>
+		<!-- #ifdef APP-IOS -->
+		<tql-native-tabbar
+			:active-index="activeTab"
+			:minimized="iosTabbarMinimized"
+			@change="setActiveTab"
+		/>
+		<!-- #endif -->
+		<!-- #ifndef APP-IOS -->
+		<app-tab-bar :active-index="activeTab" @change="setActiveTab" />
+		<!-- #endif -->
+
+	</view>
+</template>
+
+<script lang="uts">
+	import { logout } from '@/api/auth.uts'
+	import { clearSession, getSession } from '@/utils/auth.uts'
+
+	export default {
+		data() {
+			return {
+				activeTab: 0,
+				iosTabbarMinimized: false,
+				lastScrollTop: 0,
+				session: null as any | null,
+				taskFilter: 0,
+				taskKeyword: '',
+				selectedTask: null as UTSJSONObject | null,
+				storeName: '未选择门店',
+				taskFilters: ['全部', '待完成', '已完成', '已过期'],
+				metrics: [] as UTSJSONObject[],
+				tasks: [
+					{
+						id: 'SV-20260728-001',
+						type: '半原创',
+						title: '夏季新品门店探店短视频',
+						description: '按分镜样例拍摄 3 段门店画面，合成后发布抖音并回传链接',
+						status: '待完成',
+						action: '去完成',
+						tone: 'danger',
+						owner: '总部运营',
+						time: '今日 18:00',
+						dateRange: '7月28日-7月31日',
+						platform: '抖音',
+						topic: '#同庆楼 #夏季新品 #门店探店',
+						requirement: '竖屏 9:16，每段 8-12 秒，画面需包含门头、菜品特写和服务场景',
+						progress: '0/3 分镜已上传',
+						stepIndex: 1
+					},
+					{
+						id: 'SV-20260725-009',
+						type: '原创',
+						title: '七夕套餐员工口播',
+						description: '根据拍摄要求自行组织脚本，上传成片后发布并填写视频链接',
+						status: '待完成',
+						action: '去完成',
+						tone: 'warning',
+						owner: '品牌市场部',
+						time: '明日 12:00',
+						dateRange: '7月25日-7月29日',
+						platform: '抖音',
+						topic: '#七夕约会 #同庆楼',
+						requirement: '突出套餐卖点和预约方式，建议 30 秒以内，员工真人出镜',
+						progress: '待上传视频',
+						stepIndex: 1
+					},
+					{
+						id: 'SV-20260718-006',
+						type: '半原创',
+						title: '包厢服务标准展示',
+						description: '已完成发布，视频链接已回传，等待后续数据回收',
+						status: '已完成',
+						action: '去查看',
+						tone: 'primary',
+						owner: '区域运营',
+						time: '已完成',
+						dateRange: '7月18日-7月21日',
+						platform: '抖音',
+						topic: '#包厢服务 #宴请',
+						requirement: '展示包厢环境、上菜服务和餐后回访',
+						progress: '已回传链接',
+						stepIndex: 4
+					},
+					{
+						id: 'SV-20260710-002',
+						type: '原创',
+						title: '门店招牌菜推荐',
+						description: '任务已超过发布截止时间，可查看原任务要求',
+						status: '已过期',
+						action: '去查看',
+						tone: 'muted',
+						owner: '总部运营',
+						time: '已过期',
+						dateRange: '7月10日-7月12日',
+						platform: '视频号',
+						topic: '#招牌菜 #同庆楼',
+						requirement: '围绕一道招牌菜完成 20 秒推荐视频',
+						progress: '未完成',
+						stepIndex: 0
+					}
+				] as UTSJSONObject[],
+				videoTaskSteps: ['任务信息', '视频上传', '视频合成', '视频发布', '回传链接'],
+				videoApps: [
+					{ label: 'AI短视频', icon: '/static/icons/tabbar/task-filled.svg', tone: 'blue' },
+					{ label: '账号绑定', icon: '/static/icons/user.svg', tone: 'cyan' },
+					{ label: '发布记录', icon: '/static/icons/tabbar/task-outline.svg', tone: 'amber' },
+					{ label: '素材规范', icon: '/static/icons/nav/notification.svg', tone: 'red' }
+				],
+				inspectionApps: [
+					{ label: '巡店任务', icon: '/static/icons/tabbar/task-filled.svg', tone: 'blue' },
+					{ label: '门店自检', icon: '/static/icons/merchant.svg', tone: 'cyan' },
+					{ label: '检查记录', icon: '/static/icons/tabbar/task-outline.svg', tone: 'amber' },
+					{ label: '整改任务', icon: '/static/icons/nav/notification.svg', tone: 'red' }
+				],
+				profileItems: [
+					{ label: '账号与安全', value: '' },
+					{ label: '消息设置', value: '已开启' },
+					{ label: '帮助与反馈', value: '' },
+					{ label: '关于平台', value: 'v1.0.0' }
+				]
+			}
+		},
+		computed: {
+			currentDate() {
+				const date = new Date()
+				const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+				return `${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]}`
+			},
+			tenantName() { return this.session?.user?.tenantName || '当前组织' },
+			displayName() { return this.session?.user?.displayName || '当前用户' },
+			username() { return this.session?.user?.username || '—' },
+			avatarText() { return this.displayName.slice(0, 1) },
+			pendingTaskCount() {
+				let count = 0
+				for (let index = 0; index < this.tasks.length; index++) {
+					const task = this.tasks[index]
+					if (task['status'] === '待完成') count++
+				}
+				return count
+			},
+			filteredTasks() {
+				const result = [] as UTSJSONObject[]
+				const keyword = this.taskKeyword.trim()
+				for (let index = 0; index < this.tasks.length; index++) {
+					const task = this.tasks[index]
+					const status = task['status'] as string
+					if (this.taskFilter === 1 && status !== '待完成') continue
+					if (this.taskFilter === 2 && status !== '已完成') continue
+					if (this.taskFilter === 3 && status !== '已过期') continue
+					if (keyword.length > 0) {
+						const text = `${task['title']}${task['description']}${task['topic']}${task['platform']}`
+						if (text.indexOf(keyword) < 0) continue
+					}
+					result.push(task)
+				}
+				return result
+			},
+			selectedTaskStep() {
+				if (this.selectedTask == null) return 0
+				return this.selectedTask['stepIndex'] as number
+			}
+		},
+		onLoad() {
+			this.session = getSession()
+			if (!this.session) uni.reLaunch({ url: '/pages/index/index' })
+		},
+		async onPullDownRefresh() {
+			try {
+				// 当前页面接入真实接口后，可在这里并行刷新任务、消息和门店概览。
+				this.session = getSession()
+				await new Promise<void>((resolve) => setTimeout(() => resolve(), 450))
+			} finally {
+				uni.stopPullDownRefresh()
+			}
+		},
+		onPageScroll(event: OnPageScrollOptions) {
+			const scrollTop = event.scrollTop
+			const delta = scrollTop - this.lastScrollTop
+			if (scrollTop <= 20) {
+				this.iosTabbarMinimized = false
+			} else if (delta > 8) {
+				this.iosTabbarMinimized = true
+			} else if (delta < -8) {
+				this.iosTabbarMinimized = false
+			}
+			this.lastScrollTop = scrollTop
+		},
+		methods: {
+			setActiveTab(index: number) {
+				if (!Number.isInteger(index) || index < 0 || index > 4 || index === this.activeTab) return
+				this.activeTab = index
+			},
+			goToTasks() {
+				this.setActiveTab(2)
+			},
+			openTask(task: UTSJSONObject) {
+				this.selectedTask = task
+				this.setActiveTab(2)
+			},
+			closeTaskDetail() {
+				this.selectedTask = null
+			},
+			getSelectedTaskField(field: string) {
+				if (this.selectedTask == null) return ''
+				return `${this.selectedTask[field]}`
+			},
+			continueSelectedTask() {
+				if (this.selectedTask == null) return
+				uni.showToast({ title: `${this.selectedTask['action']}：${this.selectedTask['title']}`, icon: 'none' })
+			},
+			openApplication(item: UTSJSONObject) {
+				const label = item['label'] as string
+				if (label === 'AI短视频') {
+					this.selectedTask = null
+					this.setActiveTab(2)
+					return
+				}
+				this.showPending(label)
+			},
+			getStepDescription(index: number) {
+				if (index === 0) return '查看任务类型、时间、创建人和发布平台'
+				if (index === 1) return '按分镜样例或原创要求上传竖屏视频'
+				if (index === 2) return '合成成片，可追加配音、字幕和转场'
+				if (index === 3) return '拉起平台发布，复制话题和标题'
+				return '填写已发布视频链接，完成任务闭环'
+			},
+			showPending(label: string) { uni.showToast({ title: `${label}功能建设中`, icon: 'none' }) },
+			handleLogout() {
+				uni.showModal({
+					title: '退出登录',
+					content: '确定退出当前账号吗？',
+					confirmColor: '#165DFF',
+					success: async (result: ShowModalSuccess) => {
+						if (!result.confirm) return
+						try { await logout() } catch (error: any) { /* 本地会话仍需清理 */ }
+						clearSession()
+						uni.reLaunch({ url: '/pages/index/index' })
+					}
+				})
+			}
+		}
+	}
+</script>
+
+<style>
+	.app-shell {
+		--primary: #165dff;
+		--text: #1d2129;
+		--muted: #86909c;
+		--soft: #f2f3f5;
+		--line: #e5e6eb;
+		--app-page-max-width: 820rpx;
+		--app-page-gutter: 32rpx;
+		--app-page-top-gap: 32rpx;
+		--app-tabbar-reserve: 150rpx;
+		--app-section-gap: 44rpx;
+		--app-card-radius: 26rpx;
+		position: relative;
+		box-sizing: border-box;
+		height: 100%;
+		background: linear-gradient(180deg, #eaf4ff 0%, #f4f7fc 32%, #f7f8fa 66%, #f7f8fa 100%);
+		color: var(--text);
+		font-family: "PingFang SC", "PingFangSC-Regular", "Helvetica Neue", Arial, sans-serif;
+	}
+
+	.top-wash {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: linear-gradient(135deg, rgba(232, 243, 255, 0.98), rgba(247, 249, 253, 0.94) 42%, #f7f8fa 76%);
+	}
+
+	.page-main {
+		position: relative;
+		z-index: 1;
+		box-sizing: border-box;
+		width: 100%;
+		max-width: var(--app-page-max-width);
+		height: 100%;
+		margin: 0 auto;
+		padding: var(--app-page-top-gap) var(--app-page-gutter) var(--app-tabbar-reserve);
+	}
+
+	.tab-stage { position: relative; margin-top: 0; }
+	.tab-page { width: 100%; margin-top: 0; }
+
+	.welcome-row { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; }
+	.welcome-title { font-size: 34rpx; font-weight: 600; line-height: 1.35; }
+	.welcome-date { margin-top: 10rpx; color: var(--muted); font-size: 24rpx; line-height: 1.4; }
+	.weather-pill { flex: 0 0 auto; padding: 10rpx 18rpx; border-radius: 999rpx; background: rgba(255,255,255,.72); color: #4e5969; font-size: 22rpx; }
+
+	.focus-card {
+		display: flex;
+		flex-direction: row;
+		align-items: flex-end;
+		box-sizing: border-box;
+		margin-top: 34rpx;
+		padding: 30rpx;
+		border: 1rpx solid rgba(64, 128, 255, 0.12);
+		border-radius: 28rpx;
+		background: rgba(232, 243, 255, 0.92);
+		box-shadow: 0 12rpx 30rpx rgba(22, 93, 255, 0.06);
+	}
+	.focus-copy { flex: 1; min-width: 0; }
+	.focus-kicker { color: var(--primary); font-size: 22rpx; font-weight: 600; }
+	.focus-title { margin-top: 12rpx; font-size: 31rpx; font-weight: 600; line-height: 1.35; }
+	.focus-subtitle { margin-top: 10rpx; color: #4e5969; font-size: 23rpx; line-height: 1.55; }
+	.focus-button { flex: 0 0 auto; height: 64rpx; margin: 0 0 2rpx 20rpx; padding: 0 24rpx; border-width: 0; border-radius: 16rpx; background-color: var(--primary); color: #fff; font-size: 24rpx; font-weight: 500; line-height: 64rpx; }
+	.focus-button--pressed { transform: scale(.96); background: #0e42d2; }
+
+	.section-heading { display: flex; flex-direction: row; align-items: center; justify-content: space-between; margin-top: var(--app-section-gap); }
+	.section-heading--tasks { margin-top: 48rpx; }
+	.section-title { font-size: 30rpx; font-weight: 600; }
+	.section-link, .section-link-button { color: var(--primary); font-size: 23rpx; }
+	.section-link-button { margin: 0; padding: 8rpx 0; border-width: 0; background-color: transparent; line-height: 1; }
+	.link-pressed { opacity: .55; }
+
+	.metric-grid { flex-direction: row; margin-top: 24rpx; }
+	.metric-card { flex: 1; min-width: 0; margin-right: 16rpx; padding: 24rpx 20rpx; border: 1rpx solid rgba(229,230,235,.8); border-radius: 24rpx; background: rgba(255,255,255,.9); }
+	.metric-value { overflow: hidden; font-size: 31rpx; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+	.metric-label { margin-top: 10rpx; color: #4e5969; font-size: 22rpx; }
+	.metric-trend { margin-top: 16rpx; color: #00b42a; font-size: 19rpx; line-height: 1.3; }
+	.metric-trend--warn { color: #f77234; }
+
+	.list-card, .settings-card { margin-top: 22rpx; overflow: hidden; border: 1rpx solid rgba(229,230,235,.86); border-radius: var(--app-card-radius); background: rgba(255,255,255,.94); }
+	.empty-card { margin-top: 22rpx; padding: 56rpx 24rpx; border: 1rpx solid rgba(229,230,235,.86); border-radius: var(--app-card-radius); background: #fff; color: var(--muted); font-size: 24rpx; text-align: center; }
+	.task-row, .message-row, .settings-row { display: flex; flex-direction: row; align-items: center; box-sizing: border-box; width: 100%; margin: 0; padding: 25rpx 24rpx; border-width: 0; border-bottom-width: 1rpx; border-bottom-color: #f2f3f5; border-radius: 0; background-color: transparent; text-align: left; line-height: 1; }
+	.list-row--pressed { background: #f7f8fa; }
+	.task-status { flex: 0 0 auto; width: 14rpx; height: 14rpx; margin-right: 22rpx; border-radius: 50%; }
+	.task-status--danger { background: #f53f3f; box-shadow: 0 0 0 7rpx rgba(245,63,63,.09); }
+	.task-status--warning { background: #ff7d00; box-shadow: 0 0 0 7rpx rgba(255,125,0,.09); }
+	.task-status--primary { background: var(--primary); box-shadow: 0 0 0 7rpx rgba(22,93,255,.09); }
+	.task-status--muted { background: #c9cdd4; box-shadow: 0 0 0 7rpx rgba(201,205,212,.15); }
+	.task-copy { flex: 1; min-width: 0; }
+	.task-title { overflow: hidden; font-size: 27rpx; font-weight: 550; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+	.task-meta { margin-top: 10rpx; color: var(--muted); font-size: 21rpx; line-height: 1.3; }
+	.task-meta-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; margin-top: 10rpx; }
+	.task-tag { flex: 0 0 auto; margin-left: 18rpx; padding: 8rpx 13rpx; border-radius: 999rpx; background: var(--soft); color: #4e5969; font-size: 19rpx; line-height: 1; }
+	.task-type { flex: 0 0 auto; margin-left: 12rpx; padding: 7rpx 11rpx; border-radius: 999rpx; background: #e8f3ff; color: var(--primary); font-size: 18rpx; line-height: 1; }
+
+	.task-summary { padding: 32rpx; border-radius: 28rpx; background: linear-gradient(135deg, #165dff, #4080ff); box-shadow: 0 18rpx 36rpx rgba(22,93,255,.17); color: #fff; }
+	.summary-number { color: #fff; font-size: 64rpx; font-weight: 650; line-height: 1; }
+	.summary-unit { margin-left: 8rpx; color: #fff; font-size: 24rpx; }
+	.summary-title { margin-top: 18rpx; color: #fff; font-size: 29rpx; font-weight: 600; }
+	.summary-subtitle { margin-top: 9rpx; color: rgba(255,255,255,.78); font-size: 22rpx; }
+	.summary-progress { height: 8rpx; margin-top: 26rpx; overflow: hidden; border-radius: 999rpx; background: rgba(255,255,255,.22); }
+	.summary-progress-value { width: 60%; height: 100%; border-radius: 999rpx; background: #fff; }
+	.segment-control { display: flex; flex-direction: row; margin-top: 30rpx; padding: 7rpx; border-radius: 20rpx; background: #e5e6eb; }
+	.segment-item { flex: 1; height: 62rpx; margin: 0; padding: 0; border-width: 0; border-radius: 16rpx; background-color: transparent; color: #4e5969; font-size: 23rpx; line-height: 62rpx; }
+	.segment-item--active { background: #fff; box-shadow: 0 5rpx 13rpx rgba(29,33,41,.08); color: var(--text); font-weight: 600; }
+	.task-search { display: flex; flex-direction: row; align-items: center; height: 82rpx; margin-top: 24rpx; padding: 0 24rpx; border-radius: 22rpx; background: rgba(255,255,255,.96); border: 1rpx solid rgba(229,230,235,.86); }
+	.task-search-icon { flex: 0 0 auto; width: 34rpx; height: 34rpx; }
+	.task-search-input { flex: 1; min-width: 0; height: 100%; margin-left: 16rpx; color: var(--text); font-family: "PingFang SC", "PingFangSC-Regular", "Helvetica Neue", Arial, sans-serif; font-size: 24rpx; line-height: 82rpx; }
+	.task-search-placeholder { color: #c9cdd4; font-family: "PingFang SC", "PingFangSC-Regular", "Helvetica Neue", Arial, sans-serif; font-size: 24rpx; }
+	.task-detail-card { margin-top: 26rpx; padding: 28rpx; border-radius: 28rpx; background: rgba(255,255,255,.98); border: 1rpx solid rgba(64,128,255,.14); box-shadow: 0 14rpx 34rpx rgba(22,93,255,.08); }
+	.task-detail-header { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; }
+	.task-detail-copy { flex: 1; min-width: 0; }
+	.task-detail-kicker { color: var(--primary); font-size: 21rpx; font-weight: 600; line-height: 1.3; }
+	.task-detail-title { margin-top: 9rpx; color: var(--text); font-size: 32rpx; font-weight: 650; line-height: 1.35; }
+	.task-detail-meta { margin-top: 9rpx; color: var(--muted); font-size: 22rpx; line-height: 1.35; }
+	.detail-close-button { flex: 0 0 auto; margin: 0 0 0 18rpx; padding: 8rpx 0; border-width: 0; background-color: transparent; color: var(--primary); font-family: "PingFang SC", "PingFangSC-Regular", "Helvetica Neue", Arial, sans-serif; font-size: 23rpx; line-height: 1; }
+	.workflow-card { margin-top: 26rpx; padding: 24rpx; border-radius: 24rpx; background: #f7f8fa; }
+	.workflow-step { display: flex; flex-direction: row; align-items: flex-start; margin-bottom: 22rpx; }
+	.workflow-dot { flex: 0 0 auto; width: 18rpx; height: 18rpx; margin-top: 7rpx; margin-right: 18rpx; border-radius: 50%; background: #c9cdd4; }
+	.workflow-dot--active { background: var(--primary); box-shadow: 0 0 0 8rpx rgba(22,93,255,.10); }
+	.workflow-copy { flex: 1; min-width: 0; }
+	.workflow-title { color: var(--text); font-size: 25rpx; font-weight: 600; line-height: 1.35; }
+	.workflow-desc { margin-top: 6rpx; color: var(--muted); font-size: 21rpx; line-height: 1.45; }
+	.task-info-grid { margin-top: 24rpx; }
+	.task-info-item { margin-top: 18rpx; padding: 20rpx; border-radius: 20rpx; background: #f7f8fa; }
+	.task-info-label { color: var(--muted); font-size: 20rpx; line-height: 1.3; }
+	.task-info-value { margin-top: 8rpx; color: var(--text); font-size: 23rpx; line-height: 1.55; }
+	.primary-action-button { display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%; height: 82rpx; margin-top: 26rpx; padding: 0; border-width: 0; border-radius: 20rpx; background-color: var(--primary); color: #fff; font-family: "PingFang SC", "PingFangSC-Regular", "Helvetica Neue", Arial, sans-serif; font-size: 26rpx; font-weight: 600; line-height: 82rpx; }
+	.primary-action-button--pressed { transform: scale(.99); background: #0e42d2; }
+	.task-list-card { margin-top: 26rpx; }
+	.task-row--large { align-items: flex-start; padding-top: 29rpx; padding-bottom: 29rpx; }
+	.task-line { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+	.task-description { margin-top: 12rpx; color: #4e5969; font-size: 22rpx; line-height: 1.55; }
+
+	.notice-card { display: flex; flex-direction: row; align-items: center; padding: 25rpx; border: 1rpx solid rgba(64,128,255,.13); border-radius: 25rpx; background: rgba(232,243,255,.9); }
+	.notice-icon { flex: 0 0 auto; width: 42rpx; height: 42rpx; }
+	.notice-copy { flex: 1; min-width: 0; margin-left: 18rpx; }
+	.notice-title { font-size: 27rpx; font-weight: 600; }
+	.notice-subtitle { margin-top: 8rpx; color: #4e5969; font-size: 20rpx; line-height: 1.45; }
+	.notice-button { flex: 0 0 auto; height: 58rpx; margin: 0 0 0 18rpx; padding: 0 20rpx; border-width: 0; border-radius: 15rpx; background-color: var(--primary); color: #fff; font-size: 22rpx; line-height: 58rpx; }
+	.notice-button--pressed { transform: scale(.95); }
+	.search-box { display: flex; flex-direction: row; align-items: center; height: 86rpx; margin-top: 28rpx; padding: 0 25rpx; border-radius: 22rpx; background: #fff; color: #c9cdd4; }
+	.search-icon { width: 36rpx; height: 36rpx; }
+	.search-placeholder { margin-left: 16rpx; font-size: 24rpx; }
+	.message-filters { display: flex; flex-direction: row; margin-top: 30rpx; }
+	.message-filter { position: relative; margin: 0; padding: 12rpx 0 18rpx; border-width: 0; background-color: transparent; color: #4e5969; font-size: 25rpx; line-height: 1; }
+	.message-filter--active { color: var(--text); font-weight: 600; }
+	.message-list { margin-top: 8rpx; overflow: hidden; border-radius: 26rpx; background: rgba(255,255,255,.94); }
+	.message-row { position: relative; padding-top: 28rpx; padding-bottom: 28rpx; }
+	.message-avatar { display: flex; flex-direction: row; flex: 0 0 auto; align-items: center; justify-content: center; width: 78rpx; height: 78rpx; border-radius: 24rpx; }
+	.message-avatar-image { width: 39rpx; height: 39rpx; }
+	.message-avatar--warning { background: #fff7e8; }
+	.message-avatar--primary { background: #e8f3ff; }
+	.message-avatar--success { background: #e8ffea; }
+	.message-avatar--muted { background: #f2f3f5; }
+	.message-copy { flex: 1; min-width: 0; margin-left: 21rpx; }
+	.message-title-line { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+	.message-title { font-size: 27rpx; font-weight: 550; }
+	.message-time { color: #c9cdd4; font-size: 20rpx; }
+	.message-preview { margin-top: 11rpx; overflow: hidden; color: var(--muted); font-size: 22rpx; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+	.message-unread { position: absolute; top: 26rpx; right: 18rpx; width: 13rpx; height: 13rpx; border-radius: 50%; background: #f53f3f; }
+
+	.analysis-card {
+		box-sizing: border-box;
+		padding: 34rpx;
+		border-radius: 28rpx;
+		background: #165dff;
+		box-shadow: 0 18rpx 36rpx rgba(22, 93, 255, .16);
+		color: #fff;
+	}
+	.analysis-kicker { color: rgba(255, 255, 255, .72); font-size: 22rpx; }
+	.analysis-title { margin-top: 13rpx; color: #fff; font-size: 37rpx; font-weight: 650; }
+	.analysis-description { margin-top: 18rpx; color: rgba(255, 255, 255, .82); font-size: 23rpx; line-height: 1.55; }
+
+	.app-workbench { padding-bottom: 20rpx; }
+	.workbench-intro { margin: 2rpx 4rpx 28rpx; }
+	.workbench-title { font-size: 34rpx; font-weight: 600; line-height: 1.35; }
+	.workbench-subtitle { margin-top: 9rpx; color: var(--muted); font-size: 23rpx; line-height: 1.45; }
+	.application-card {
+		overflow: hidden;
+		border: 1rpx solid rgba(229, 230, 235, .82);
+		border-radius: 28rpx;
+		background: rgba(255, 255, 255, .96);
+		box-shadow: 0 10rpx 30rpx rgba(29, 33, 41, .045);
+	}
+	.application-card--spaced { margin-top: 26rpx; }
+	.application-card__header { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 29rpx 30rpx 18rpx; }
+	.application-card__title { font-size: 29rpx; font-weight: 600; }
+	.application-card__meta { color: var(--muted); font-size: 21rpx; }
+	.application-grid { flex-direction: row; padding: 16rpx 10rpx 30rpx; }
+	.application-item {
+		flex: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: flex-start;
+		min-width: 0;
+		margin: 0;
+		padding: 15rpx 4rpx 10rpx;
+		border-width: 0;
+		border-radius: 20rpx;
+		background-color: transparent;
+		line-height: 1;
+	}
+	.application-item--pressed { background: #f2f3f5; transform: scale(.96); }
+	.application-icon { display: flex; flex-direction: row; align-items: center; justify-content: center; width: 82rpx; height: 82rpx; border-radius: 23rpx; }
+	.application-icon-image { width: 44rpx; height: 44rpx; }
+	.application-icon--blue { background: #e8f3ff; }
+	.application-icon--cyan { background: #e8fffb; }
+	.application-icon--amber { background: #fff7e8; }
+	.application-icon--red { background: #fff1f0; }
+	.application-label { margin-top: 18rpx; overflow: hidden; color: var(--text); font-size: 23rpx; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+
+	.profile-card { display: flex; flex-direction: row; align-items: center; padding: 31rpx; border-radius: 28rpx; background: #fff; }
+	.profile-avatar { display: flex; flex-direction: row; align-items: center; justify-content: center; width: 92rpx; height: 92rpx; border-radius: 50%; background: #e8f3ff; color: var(--primary); font-size: 36rpx; font-weight: 650; }
+	.profile-copy { flex: 1; min-width: 0; margin-left: 22rpx; }
+	.profile-name { font-size: 31rpx; font-weight: 600; }
+	.profile-account { margin-top: 10rpx; color: var(--muted); font-size: 22rpx; }
+	.profile-arrow { width: 35rpx; height: 35rpx; }
+	.store-card { margin-top: 24rpx; padding: 29rpx; border-radius: 26rpx; background: linear-gradient(135deg, #1d2129, #344257); color: #fff; }
+	.store-card-label { color: #a9b3c2; font-size: 21rpx; }
+	.store-card-title { margin-top: 16rpx; color: #fff; font-size: 31rpx; font-weight: 600; }
+	.store-card-meta { margin-top: 11rpx; color: #c9cdd4; font-size: 21rpx; }
+	.settings-card { margin-top: 25rpx; }
+	.settings-row { min-height: 92rpx; }
+	.settings-label { flex: 1; font-size: 25rpx; }
+	.settings-value { margin-right: 12rpx; color: var(--muted); font-size: 22rpx; }
+	.settings-arrow { width: 30rpx; height: 30rpx; }
+	.logout-button { width: 100%; height: 88rpx; margin-top: 28rpx; border: 1rpx solid #ffccc7; border-radius: 22rpx; background: #fff; color: #f53f3f; font-size: 25rpx; font-weight: 500; line-height: 88rpx; }
+	.logout-button--pressed { background: #fff1f0; transform: scale(.99); }
+
+</style>

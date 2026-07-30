@@ -1,0 +1,143 @@
+<template>
+	<view class="native-tabbar-host">
+		<native-view
+			v-if="!nativeUnavailable"
+			class="native-tabbar-view"
+			@init="onViewInit"
+			@tabChange="onTabChange"
+		/>
+		<view v-if="nativeUnavailable" class="fallback-tabbar">
+			<view
+				v-for="(item, index) in tabs"
+				:key="item.text"
+				class="fallback-tabbar-item"
+				:class="{ 'fallback-tabbar-item--active': activeIndex === index }"
+				hover-class="fallback-tabbar-item--pressed"
+				@click="selectFallback(index)"
+			>
+				<text
+					class="fallback-tabbar-label"
+					:class="{ 'fallback-tabbar-label--active': activeIndex === index }"
+				>{{ item.text }}</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { NativeTabBar } from '@/uni_modules/tql-native-tabbar'
+
+	const props = defineProps<{
+		activeIndex: number
+		minimized: boolean
+	}>()
+
+	const emit = defineEmits<{
+		(e: 'change', index: number): void
+	}>()
+
+	const nativeUnavailable = ref(false)
+	const tabs = [
+		{ text: '首页' },
+		{ text: '分析' },
+		{ text: '任务' },
+		{ text: '应用' },
+		{ text: '我的' }
+	]
+
+	let nativeTabBar: NativeTabBar | null = null
+
+	function onViewInit(event: UniNativeViewInitEvent) {
+		try {
+			nativeTabBar = new NativeTabBar(event.detail.element)
+			nativeTabBar?.setSelectedIndex(props.activeIndex)
+			nativeTabBar?.setMinimized(props.minimized)
+		} catch (error: any) {
+			nativeTabBar = null
+			nativeUnavailable.value = true
+			console.warn('iOS 原生 TabBar 不可用，已切换到标准基座兜底 TabBar', error)
+		}
+	}
+
+	function onTabChange(event: UniNativeViewEvent) {
+		const index = event.detail['index'] as number
+		emit('change', index)
+	}
+
+	function selectFallback(index: number) {
+		if (index === props.activeIndex || index < 0 || index >= tabs.length) return
+		emit('change', index)
+	}
+
+	watchEffect(() => {
+		if (nativeUnavailable.value) return
+		nativeTabBar?.setSelectedIndex(props.activeIndex)
+	})
+
+	watchEffect(() => {
+		if (nativeUnavailable.value) return
+		nativeTabBar?.setMinimized(props.minimized)
+	})
+
+	onUnmounted(() => {
+		nativeTabBar?.destroy()
+		nativeTabBar = null
+	})
+</script>
+
+<style>
+	.native-tabbar-host {
+		position: fixed;
+		z-index: 999;
+		right: 12px;
+		bottom: 8px;
+		left: 12px;
+		height: 74px;
+		padding-bottom: 0;
+	}
+
+	.native-tabbar-view {
+		width: 100%;
+		height: 100%;
+	}
+
+	.fallback-tabbar {
+		flex-direction: row;
+		box-sizing: border-box;
+		width: 100%;
+		height: 100%;
+		padding: 6px 10px;
+		border-width: 1px;
+		border-color: rgba(0, 0, 0, 0.08);
+		border-radius: 24px;
+		background-color: rgba(250, 250, 250, 0.94);
+		box-shadow: 0 -2px 18px rgba(0, 0, 0, 0.08);
+	}
+
+	.fallback-tabbar-item {
+		flex: 1;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		border-radius: 18px;
+	}
+
+	.fallback-tabbar-label {
+		color: #666a72;
+		font-family: "PingFang SC", "PingFangSC-Regular", "Helvetica Neue", Arial, sans-serif;
+		font-size: 14px;
+		font-weight: 400;
+		line-height: 1;
+	}
+
+	.fallback-tabbar-label--active {
+		color: #165dff;
+		font-weight: 600;
+	}
+
+	.fallback-tabbar-item--pressed {
+		background-color: rgba(118, 118, 128, 0.10);
+	}
+</style>

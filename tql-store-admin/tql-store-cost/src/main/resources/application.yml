@@ -1,0 +1,24 @@
+server:
+  port: 9210
+spring:
+  application:
+    name: tql-store-cost
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:tql_store_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:false}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+legacy-cost:
+  base-url: ${LEGACY_COST_API_BASE_URL:http://127.0.0.1:9304}
+  food-path: ${LEGACY_COST_FOOD_PATH:/bom/food/findAllFood}
+  sync-food-path: ${LEGACY_COST_SYNC_FOOD_PATH:/bom/food/findSyncFoodList}

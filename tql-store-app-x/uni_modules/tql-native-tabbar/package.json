@@ -1,0 +1,7 @@
+{
+  "id": "tql-native-tabbar",
+  "displayName": "同庆楼 iOS 原生 TabBar",
+  "version": "1.0.0",
+  "description": "基于 UIKit UITabBar 的 uni-app x iOS 原生底部导航",
+  "uni_modules": {}
+}

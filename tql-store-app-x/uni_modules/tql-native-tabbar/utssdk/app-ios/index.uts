@@ -1,0 +1,112 @@
+import {
+	UIColor,
+	UIImage,
+	UITabBar,
+	UITabBarAppearance,
+	UITabBarDelegate,
+	UITabBarItem,
+	UIBlurEffect,
+	UIView
+} from 'UIKit'
+import { CGAffineTransform } from 'CoreGraphics'
+import { NSObject } from 'Foundation'
+import { UTSiOS } from 'DCloudUTSFoundation'
+
+const tabTitles = ['首页', '分析', '任务', '应用', '我的']
+const tabSymbols = ['house', 'chart.bar.xaxis', 'checklist', 'square.grid.2x2', 'person']
+const selectedSymbols = ['house.fill', 'chart.bar.xaxis', 'checklist.checked', 'square.grid.2x2.fill', 'person.fill']
+
+export class NativeTabBar extends NSObject implements UITabBarDelegate {
+	element: UniNativeViewElement
+	tabBar: UITabBar | null = null
+
+	constructor(element: UniNativeViewElement) {
+		this.element = element
+		super.init()
+		this.bindView()
+	}
+
+	private bindView() {
+		const bar = new UITabBar()
+		const items = new Array<UITabBarItem>()
+
+		for (let index = 0; index < tabTitles.length; index++) {
+			const image = new UIImage(systemName = tabSymbols[index])
+			const selectedImage = new UIImage(systemName = selectedSymbols[index])
+			const item = new UITabBarItem(
+				title = tabTitles[index],
+				image = image,
+				selectedImage = selectedImage
+			)
+			item.tag = index
+			items.push(item)
+		}
+
+		bar.items = items
+		bar.delegate = this
+		bar.tintColor = new UIColor(red = 0.086, green = 0.365, blue = 1.0, alpha = 1.0)
+		bar.unselectedItemTintColor = UIColor.secondaryLabel
+		bar.itemPositioning = UITabBar.ItemPositioning.fill
+
+		if (!UTSiOS.available('iOS 26.0, *')) {
+			const appearance = new UITabBarAppearance()
+			appearance.configureWithTransparentBackground()
+			appearance.backgroundEffect = new UIBlurEffect(style = UIBlurEffect.Style.systemChromeMaterial)
+			appearance.backgroundColor = new UIColor(white = 1.0, alpha = 0.34)
+			appearance.shadowColor = new UIColor(white = 0.0, alpha = 0.10)
+			bar.standardAppearance = appearance
+			if (UTSiOS.available('iOS 15.0, *')) {
+				bar.scrollEdgeAppearance = appearance
+			}
+			bar.layer.cornerRadius = 24.0
+			bar.layer.masksToBounds = true
+		}
+
+		this.tabBar = bar
+		this.element.bindIOSView(bar)
+	}
+
+	setSelectedIndex(index: number) {
+		const items = this.tabBar?.items
+		const bar = this.tabBar
+		if (bar == null || items == null || index < 0 || index >= items.length) {
+			return
+		}
+		bar.selectedItem = items[index]
+	}
+
+	setMinimized(minimized: boolean) {
+		if (!UTSiOS.available('iOS 26.0, *')) {
+			return
+		}
+		const bar = this.tabBar
+		if (bar == null) {
+			return
+		}
+		UIView.animate(
+			withDuration = 0.28,
+			delay = 0.0,
+			options = UIView.AnimationOptions.curveEaseInOut,
+			animations = (): void => {
+				bar.transform = minimized
+					? new CGAffineTransform(scaleX = 0.72, y = 0.86)
+					: CGAffineTransform.identity
+			},
+			completion = null
+		)
+	}
+
+	tabBar(tabBar: UITabBar, @argumentLabel('didSelect') item: UITabBarItem) {
+		const detail = { index: item.tag }
+		this.element.dispatchEvent(new UniNativeViewEvent('tabChange', detail))
+	}
+
+	destroy() {
+		const bar = this.tabBar
+		if (bar != null) {
+			bar.delegate = null
+		}
+		this.tabBar = null
+		UTSiOS.destroyInstance(this)
+	}
+}

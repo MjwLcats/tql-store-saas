@@ -1,0 +1,19 @@
+import { appConfig } from '@/config/app.uts'
+import { request } from './request.uts'
+
+export function login(merchantNo: string, username: string, password: string): Promise<any> {
+	return request<any>({
+		url: '/api/auth/login',
+		method: 'POST',
+		data: {
+			merchantNo: merchantNo.trim(),
+			username: username.trim(),
+			password,
+			clientType: appConfig.clientType
+		}
+	})
+}
+
+export function logout() {
+	return request<any>({ url: '/api/auth/logout', method: 'POST' })
+}
