@@ -124,6 +124,8 @@ export const fetchContentActivities = (params?: { keyword?: string; status?: str
   request<ContentActivityItem[]>({ method: 'GET', url: '/api/operation/marketing-activities', params });
 export const terminateContentActivity = (activityId: number) =>
   request<void>({ method: 'POST', url: `/api/operation/marketing-activities/${activityId}/terminate` });
+export const deleteContentActivity = (activityId: number) =>
+  request<void>({ method: 'DELETE', url: `/api/operation/marketing-activities/${activityId}` });
 export const updateContentActivity = (activityId: number, data: UpdateContentPlanPayload) =>
   request<void>({ method: 'PUT', url: `/api/operation/marketing-activities/${activityId}`, data });
 export const createContentActivity = (data: CreateContentActivityPayload) =>

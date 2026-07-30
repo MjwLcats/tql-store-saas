@@ -10,6 +10,14 @@ const detailPage = await readFile(
 	new URL('../pages/content-tasks/detail.vue', import.meta.url),
 	'utf8'
 )
+const playerPage = await readFile(
+	new URL('../pages/content-tasks/player.vue', import.meta.url),
+	'utf8'
+)
+const pagesConfig = await readFile(
+	new URL('../pages.json', import.meta.url),
+	'utf8'
+)
 const homePage = await readFile(
 	new URL('../pages/home/index.vue', import.meta.url),
 	'utf8'
@@ -62,6 +70,54 @@ test('storyboard upload follows the document-style focused shot workflow', () =>
 	assert.match(detailPage, /instruction-box--collapsed/)
 	assert.doesNotMatch(detailPage, /return \[0, 1, 2\]\.map/)
 	assert.doesNotMatch(detailPage, /class="primary-button" :disabled="uploadedCount === 0"/)
+})
+
+test('storyboard parser accepts relative sample asset urls from backend', () => {
+	assert.ok(detailPage.includes('new RegExp(`${label}[:：]\\\\s*([^；;|｜]+)`)'))
+	assert.ok(detailPage.includes('.replace(/(?:样例视频|样例封面|示例视频|示例封面|样例比例|视频比例)[:：]\\s*[^；;|｜]+/g'))
+	assert.match(detailPage, /resolveAssetUrl\(apiItem\.sampleVideoUrl/)
+})
+
+test('sample video opens a dedicated player instead of inline tiny playback', () => {
+	assert.match(detailPage, /@click="previewSampleVideo\(activeShot\)"/)
+	assert.match(detailPage, /pages\/content-tasks\/player\?src=/)
+	assert.doesNotMatch(detailPage, /uni\.previewMedia\(\{\s*sources: \[\{ url: shot\.sampleVideoUrl/)
+	assert.doesNotMatch(detailPage, /class="sample-video"\s+[\s\S]*?:src="activeShot\.sampleVideoUrl"/)
+	assert.match(playerPage, /id="samplePlayer"/)
+	assert.match(playerPage, /object-fit="contain"/)
+	assert.match(pagesConfig, /pages\/content-tasks\/player/)
+})
+
+test('sample video cards adapt to portrait and landscape aspect ratios', () => {
+	assert.match(detailPage, /sampleAspectLabel/)
+	assert.match(detailPage, /sampleCardAspectClass/)
+	assert.match(detailPage, /样例比例/)
+	assert.match(detailPage, /sample-video-card--portrait/)
+	assert.match(detailPage, /sample-video-card--landscape/)
+	assert.match(playerPage, /player-frame--portrait/)
+	assert.match(playerPage, /player-frame--landscape/)
+	assert.match(playerPage, /aspect/)
+})
+
+test('sample player renders an inline progress bar over native video for iOS and H5', () => {
+	assert.match(playerPage, /:controls="false"/)
+	assert.match(playerPage, /class="inline-controls"/)
+	assert.match(playerPage, /inline-progress__bar/)
+	assert.match(playerPage, /inline-progress__thumb/)
+	assert.match(playerPage, /@timeupdate="onTimeUpdate"/)
+	assert.match(playerPage, /@touchmove\.stop\.prevent="onProgressTouchMove"/)
+	assert.match(playerPage, /progressPercent/)
+	assert.match(playerPage, /:show-fullscreen-btn="false"/)
+	assert.doesNotMatch(playerPage, /custom-controls/)
+	assert.doesNotMatch(playerPage, /progress-slider/)
+	assert.match(playerPage, /toggleExpanded/)
+	assert.match(playerPage, /togglePlaybackRate/)
+	assert.match(playerPage, /playbackRateText/)
+	assert.match(playerPage, /videoContext\(\)\.seek\(target\)/)
+	assert.match(playerPage, /player-frame--expanded/)
+	assert.doesNotMatch(playerPage, /requestFullScreen/)
+	assert.match(playerPage, /width: 680rpx/)
+	assert.match(playerPage, /justify-content: center/)
 })
 
 test('original content tasks hide sample videos and keep one upload slot', () => {

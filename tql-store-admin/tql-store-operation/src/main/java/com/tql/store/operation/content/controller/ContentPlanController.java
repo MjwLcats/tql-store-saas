@@ -15,6 +15,7 @@ import com.tql.store.operation.content.service.ContentPlanService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -95,6 +96,18 @@ public class ContentPlanController {
         permissionService.require(
                 userId, tenantId, clientType, "merchant:content:plan:cancel");
         contentPlanService.terminateActivity(tenantId, userId, id);
+        return ApiResponse.success(null);
+    }
+
+    @DeleteMapping("/marketing-activities/{id}")
+    public ApiResponse<Void> deleteActivity(
+            @PathVariable Long id,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType) {
+        permissionService.require(
+                userId, tenantId, clientType, "merchant:content:plan:cancel");
+        contentPlanService.deleteActivity(tenantId, userId, id);
         return ApiResponse.success(null);
     }
 

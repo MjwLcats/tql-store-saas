@@ -67,7 +67,8 @@
               <a-link v-if="can(P.planUpdate) && !['已终止', '已完成', '已过期'].includes(record.status)" @click="openEdit(record)">编辑</a-link>
               <a-link v-if="can(P.planView)" @click="viewPlan(record)">查看</a-link>
               <a-link v-if="can(P.planDelivery)" @click="viewDelivery(record)">人员</a-link>
-              <a-link v-if="can(P.planCancel) && !['已终止', '已完成', '已过期'].includes(record.status)" status="danger" @click="cancelPlan(record)">取消</a-link>
+              <a-link v-if="can(P.planCancel) && !['草稿', '待开始', '已终止', '已完成', '已过期'].includes(record.status)" status="danger" @click="cancelPlan(record)">取消</a-link>
+              <a-link v-if="can(P.planCancel) && ['草稿', '待开始'].includes(record.status)" status="danger" @click="deletePlan(record)">删除</a-link>
             </a-space>
           </template>
           <template #empty>
@@ -116,7 +117,11 @@
                   <a-tag size="small" :color="calendarStatusColor(task.tone)">{{ task.status }}</a-tag>
                 </span>
                 <strong>{{ task.name }}</strong>
-                <a-progress :percent="task.progress / 100" size="small" :show-text="false" />
+                <span class="calendar-task-progress">
+                  <a-progress :percent="task.progress / 100" size="small" :show-text="false" />
+                  <span v-if="task.accounts">{{ task.completed }}/{{ task.accounts }} · {{ task.progress }}%</span>
+                  <span v-else>未下发</span>
+                </span>
               </button>
             </div>
             <button v-else-if="cell.current && can(P.calendarCreate)" class="create-day" type="button" @click="openCreate(cell.date)">+ 创建计划</button>
@@ -252,6 +257,20 @@
                   </a-form-item>
                 </a-grid-item>
               </a-grid>
+              <a-form-item label="任务开始时间" required extra="到达该时间后，系统将通过企业微信自建应用通知已下发员工">
+                <a-date-picker
+                  v-model="planForm.taskStartTime"
+                  class="task-start-picker"
+                  size="large"
+                  show-time
+                  format="YYYY-MM-DD HH:mm:ss"
+                  value-format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="请选择任务开始时间"
+                  :disabled-date="disabledTaskStartDate"
+                  :disabled-time="disabledTaskStartTime"
+                  @change="validateTaskStartTime"
+                />
+              </a-form-item>
               <a-form-item label="发布账户" required>
                 <div class="account-selector">
                   <a-radio-group v-model="planForm.accountMode"><a-radio value="组织">通过组织选择</a-radio><a-radio v-if="can(P.planImportEmployee)" value="人员">导入人员</a-radio></a-radio-group>
@@ -263,8 +282,13 @@
                   </span>
                 </div>
               </a-form-item>
+            </a-form>
+          </div>
+
+          <div v-else-if="wizardStep === 3" class="wizard-card">
+            <a-form :model="planForm" layout="vertical" class="storyboard-content-form">
               <a-form-item label="活动文案" required>
-                <a-textarea v-model="planForm.description" placeholder="请描述活动主题、商品卖点和传播目标，AI将据此生成分镜台词" :max-length="1000" show-word-limit :auto-size="{ minRows: 5, maxRows: 8 }" />
+                <a-textarea v-model="planForm.description" placeholder="请描述活动主题、商品卖点和传播目标，AI将据此生成分镜台词" :max-length="1000" show-word-limit :auto-size="{ minRows: 4, maxRows: 7 }" />
               </a-form-item>
               <a-form-item label="话题">
                 <div class="topic-field">
@@ -285,9 +309,6 @@
                 </div>
               </a-form-item>
             </a-form>
-          </div>
-
-          <div v-else-if="wizardStep === 3" class="wizard-card">
             <template v-if="planForm.type === '半原创'">
               <div class="storyboard-toolbar">
                 <div><strong>分镜模板</strong><span>员工将按分镜顺序完成拍摄与上传</span></div>
@@ -300,23 +321,29 @@
               <a-tabs v-model:active-key="activeStoryboard" type="card-gutter">
                 <a-tab-pane v-for="(storyboard, index) in storyboards" :key="index" :title="`分镜 ${index + 1}`">
                   <a-form :model="storyboard" layout="vertical">
-                    <a-grid :cols="2" :col-gap="28">
-                      <a-grid-item>
+                    <a-grid class="storyboard-editor-grid" :cols="25" :col-gap="28">
+                      <a-grid-item :span="13" class="storyboard-copy-column">
                         <a-form-item label="拍摄要求" required><a-textarea v-model="storyboard.requirement" placeholder="例如：在光线明亮的场景拍摄，产品保持在画面中央" :auto-size="{ minRows: 5 }" /></a-form-item>
                         <a-form-item label="分镜台词" required>
                           <a-textarea v-model="storyboard.script" placeholder="点击“AI生成全部分镜脚本”自动生成，也可手动修改" :max-length="300" show-word-limit :auto-size="{ minRows: 5 }" />
                           <div class="duration-tip">预计话术时长 {{ estimateDuration(storyboard.script) }} 秒</div>
                         </a-form-item>
                       </a-grid-item>
-                      <a-grid-item>
-                        <a-form-item label="样例视频（9:16）" required>
+                      <a-grid-item :span="12" class="storyboard-media-column">
+                        <a-form-item label="画面方向" required>
+                          <a-radio-group v-model="storyboard.sampleAspect" type="button" class="aspect-options">
+                            <a-radio value="portrait">竖版 9:16</a-radio>
+                            <a-radio value="landscape">横版 16:9</a-radio>
+                          </a-radio-group>
+                        </a-form-item>
+                        <a-form-item label="样例视频" required>
                           <a-upload :auto-upload="false" :limit="1" accept="video/mp4" @change="files => uploadStoryboardSample(index, files)">
                             <template #upload-button>
-                              <div class="video-upload large">
+                              <div class="video-upload large" :class="storyboard.sampleAspect === 'landscape' ? 'landscape' : 'portrait'">
                                 <IconUpload />
                                 <strong>{{ storyboard.uploading ? '正在上传...' : storyboard.sampleVideoUrl ? '重新上传样例视频' : '上传样例视频' }}</strong>
-                                <span v-if="storyboard.sampleVideoName">{{ storyboard.sampleVideoName }}<br />上传成功，可在员工端查看</span>
-                                <span v-else>支持 MP4，最大 200MB<br />视频画面比例建议为 9:16</span>
+                                <span v-if="storyboard.sampleVideoName">{{ storyboard.sampleVideoName }}<br />{{ sampleAspectText(storyboard.sampleAspect) }}，员工端按比例展示</span>
+                                <span v-else>支持 MP4，最大 200MB<br />请上传{{ sampleAspectText(storyboard.sampleAspect) }}视频</span>
                               </div>
                             </template>
                           </a-upload>
@@ -343,6 +370,7 @@
               <div><span>计划名称</span><strong>{{ planForm.name }}</strong></div>
               <div><span>任务类型</span><strong>{{ planForm.type }}</strong></div>
               <div><span>发布日期</span><strong>{{ planForm.dateRange.join(' 至 ') || '未设置' }}</strong></div>
+              <div><span>任务开始时间</span><strong>{{ planForm.taskStartTime || '未设置' }}</strong></div>
               <div><span>下发员工</span><strong>{{ planForm.employeeCount }} 人</strong></div>
               <div><span>发布平台</span><strong>{{ planForm.platforms.join('、') }}</strong></div>
               <div><span>{{ planForm.type === '半原创' ? '分镜数量' : '创作方式' }}</span><strong>{{ planForm.type === '半原创' ? `${planForm.storyboardCount} 个` : '员工原创' }}</strong></div>
@@ -353,13 +381,14 @@
           </div>
         </main>
         <div class="wizard-footer">
-          <a-button v-if="!editingActivityId && can(P.planSave)" type="text" :loading="submitting" @click="saveDraft">保存草稿</a-button>
-          <span>内容将自动保留在当前步骤</span>
-          <a-space>
-            <a-button v-if="wizardStep > 1" @click="wizardStep--">上一步</a-button>
-            <a-button v-if="wizardStep < 4" type="primary" @click="nextWizardStep">下一步</a-button>
-            <a-button v-else-if="editingActivityId ? can(P.planUpdate) : can(P.planPublish)" type="primary" :loading="submitting" @click="submitPlan">{{ editingActivityId ? '保存修改' : '确认并下发' }}</a-button>
-          </a-space>
+          <div class="wizard-footer-actions">
+            <a-button v-if="!editingActivityId && can(P.planSave)" type="text" :loading="submitting" @click="saveDraft">保存草稿</a-button>
+            <a-space>
+              <a-button v-if="wizardStep > 1" @click="wizardStep--">上一步</a-button>
+              <a-button v-if="wizardStep < 4" type="primary" @click="nextWizardStep">下一步</a-button>
+              <a-button v-else-if="editingActivityId ? can(P.planUpdate) : can(P.planPublish)" type="primary" :loading="submitting" @click="submitPlan">{{ editingActivityId ? '保存修改' : '确认并下发' }}</a-button>
+            </a-space>
+          </div>
         </div>
       </div>
     </section>
@@ -496,7 +525,7 @@ import {
   IconUpload, IconVideoCamera
 } from '@arco-design/web-vue/es/icon';
 import {
-  createContentAccount, createContentActivity, createContentPlan, deleteContentAccounts,
+  createContentAccount, createContentActivity, createContentPlan, deleteContentAccounts, deleteContentActivity,
   fetchActivityPlans, fetchContentAccounts, fetchContentActivities, fetchContentDeliveryTasks,
   downloadPersonnelImportTemplate, fetchContentAccountOrganizations, fetchContentAccountUsers,
   fetchContentTaskOrganizations, fetchContentTaskUsers, fetchContentVideoPerformance, importContentAccounts,
@@ -510,7 +539,7 @@ import OrganizationCollapseNode from '../components/OrganizationCollapseNode.vue
 type ModuleKey = 'plans' | 'calendar' | 'analytics' | 'accounts';
 type PlanRow = {
   id: string | number; type: string; name: string; owner: string; status: string;
-  accounts: number; completed: number; progress: number; startDate: string; endDate: string; tone?: string;
+  accounts: number; completed: number; progress: number; startDate: string; endDate: string; startTime: string; tone?: string;
   objective?: string; rawStatus?: string;
 };
 type CalendarTone = 'draft' | 'active' | 'terminated' | 'completed' | 'expired';
@@ -578,14 +607,17 @@ async function loadPlans() {
   try {
     const rows = await fetchContentActivities();
     backendPlans.value = rows.map(item => {
-      const statusMeta = activityStatusMeta[item.status] || { label: item.status, tone: 'draft' as CalendarTone };
+      const waiting = item.status === 'ACTIVE' && new Date(item.startTime).getTime() > Date.now();
+      const statusMeta = waiting
+        ? { label: '待开始', tone: 'draft' as CalendarTone }
+        : activityStatusMeta[item.status] || { label: item.status, tone: 'draft' as CalendarTone };
       return {
         id: item.id, type: item.objective?.includes('原创') ? '原创' : '半原创', name: item.name,
         owner: item.ownerName, status: statusMeta.label,
         objective: item.objective, rawStatus: item.status,
         accounts: item.employeeCount, completed: item.completedCount,
         progress: item.employeeCount ? Math.round(item.completedCount / item.employeeCount * 100) : 0,
-        startDate: item.startTime.slice(0, 10), endDate: item.endTime.slice(0, 10),
+        startDate: item.startTime.slice(0, 10), endDate: item.endTime.slice(0, 10), startTime: item.startTime,
         tone: statusMeta.tone
       };
     });
@@ -644,7 +676,7 @@ watch(
 const wizardStep = ref(1);
 const planForm = reactive({
   name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [] as string[], accountMode: '组织',
-  employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '',
+  employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '', taskStartTime: '',
   storyboardCount: 3, originalRequirement: ''
 });
 const topicInput = ref('');
@@ -694,6 +726,7 @@ type StoryboardDraft = {
   sampleVideoUrl?: string;
   sampleVideoName?: string;
   sampleCoverUrl?: string;
+  sampleAspect?: 'portrait' | 'landscape' | '';
   uploading?: boolean;
 };
 const emptyStoryboard = (): StoryboardDraft => ({
@@ -702,6 +735,7 @@ const emptyStoryboard = (): StoryboardDraft => ({
   sampleVideoUrl: '',
   sampleVideoName: '',
   sampleCoverUrl: '',
+  sampleAspect: 'portrait',
   uploading: false
 });
 const storyboards = ref<StoryboardDraft[]>([emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]);
@@ -709,7 +743,7 @@ const activeStoryboard = ref(0);
 const generating = ref(false);
 function openCreate(date?: string) { editingActivityId.value = undefined; resetPlanForm(); wizardStep.value = 1; if (date) planForm.dateRange = [date, date]; createVisible.value = true; loadEmployees(); }
 function leaveCreate() { createVisible.value = false; editingActivityId.value = undefined; wizardStep.value = 1; }
-function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '组织', employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '', storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; selectedEmployeeIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
+function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '组织', employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; selectedEmployeeIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
 function instructionValue(lines: string[], label: string) {
   return lines.find(line => line.startsWith(`${label}：`))?.slice(label.length + 1) || '';
 }
@@ -744,7 +778,8 @@ async function openEdit(record: PlanRow) {
             script: values['台词'] || '',
             sampleVideoUrl: values['样例视频'] || '',
             sampleVideoName: values['样例视频'] ? '已上传样例视频' : '',
-            sampleCoverUrl: values['样例封面'] || ''
+            sampleCoverUrl: values['样例封面'] || '',
+            sampleAspect: normalizeSampleAspect(values['样例比例']) || 'portrait'
           };
         })
       : [];
@@ -752,6 +787,7 @@ async function openEdit(record: PlanRow) {
       name: record.name,
       type: plan.creationMode === 'SELF_CREATED' ? '原创' : '半原创',
       dateRange: [record.startDate, record.endDate],
+      taskStartTime: record.startTime.replace('T', ' ').slice(0, 19),
       accountMode: '组织',
       employeeCount: new Set(personnel.map(item => item.employeeId)).size,
       platforms: platforms.length ? platforms : ['抖音'],
@@ -793,6 +829,59 @@ function minimumReleaseTime() {
 function disabledReleaseDate(date: Date) {
   return date.getTime() <= minimumReleaseTime();
 }
+function taskStartBounds() {
+  const now = new Date();
+  const publishStart = planForm.dateRange[0]
+    ? new Date(`${planForm.dateRange[0]}T00:00:00`)
+    : now;
+  const min = publishStart.getTime() > now.getTime() ? publishStart : now;
+  const max = planForm.dateRange[1]
+    ? new Date(`${planForm.dateRange[1]}T23:59:59`)
+    : undefined;
+  return { min, max };
+}
+function sameLocalDate(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+function disabledTaskStartDate(date?: Date) {
+  if (!date) return false;
+  const { min, max } = taskStartBounds();
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const minDay = new Date(min.getFullYear(), min.getMonth(), min.getDate()).getTime();
+  const maxDay = max ? new Date(max.getFullYear(), max.getMonth(), max.getDate()).getTime() : undefined;
+  return dayStart < minDay || (maxDay !== undefined && dayStart > maxDay);
+}
+function disabledTaskStartTime(date?: Date) {
+  if (!date) return {};
+  const { min } = taskStartBounds();
+  if (!sameLocalDate(date, min)) return {};
+  const selectedHour = date.getHours();
+  const selectedMinute = date.getMinutes();
+  return {
+    disabledHours: () => Array.from({ length: min.getHours() }, (_, index) => index),
+    disabledMinutes: () => selectedHour === min.getHours()
+      ? Array.from({ length: min.getMinutes() }, (_, index) => index)
+      : [],
+    disabledSeconds: () => selectedHour === min.getHours() && selectedMinute === min.getMinutes()
+      ? Array.from({ length: min.getSeconds() + 1 }, (_, index) => index)
+      : []
+  };
+}
+function taskStartIsValid() {
+  if (!planForm.taskStartTime) return false;
+  const value = new Date(planForm.taskStartTime.replace(' ', 'T'));
+  const { min, max } = taskStartBounds();
+  return !Number.isNaN(value.getTime())
+    && value.getTime() >= min.getTime()
+    && (!max || value.getTime() <= max.getTime());
+}
+function validateTaskStartTime() {
+  if (!planForm.taskStartTime || taskStartIsValid()) return;
+  planForm.taskStartTime = '';
+  Message.warning('任务开始时间不能早于当前时间，且必须在发布日期范围内');
+}
 function releaseDateIsValid() {
   if (planForm.dateRange.length !== 2) return false;
   return new Date(`${planForm.dateRange[0]}T00:00:00`).getTime() > minimumReleaseTime();
@@ -801,8 +890,11 @@ function validateReleaseDateSelection() {
   if (!planForm.dateRange.length) return;
   if (!releaseDateIsValid()) {
     planForm.dateRange = [];
+    planForm.taskStartTime = '';
     Message.warning('为确保流程正常进行，发布日期必须大于当前时间5天');
+    return;
   }
+  if (!planForm.taskStartTime) planForm.taskStartTime = `${planForm.dateRange[0]} 09:00:00`;
 }
 async function uploadStoryboardSample(index: number, files: any[]) {
   const storyboard = storyboards.value[index];
@@ -818,15 +910,48 @@ async function uploadStoryboardSample(index: number, files: any[]) {
   }
   storyboard.uploading = true;
   try {
+    const aspect = await readVideoAspect(file);
+    if (storyboard.sampleAspect && storyboard.sampleAspect !== aspect) {
+      Message.warning(`当前选择${sampleAspectText(storyboard.sampleAspect)}，请上传对应比例的视频`);
+      return;
+    }
     const result = await uploadContentSampleVideo(file);
     storyboard.sampleVideoUrl = result.url;
     storyboard.sampleVideoName = result.originalName || file.name;
-    Message.success(`分镜 ${index + 1} 样例视频上传成功`);
+    storyboard.sampleAspect = aspect;
+    Message.success(`分镜 ${index + 1} 样例视频上传成功，已识别为${sampleAspectText(aspect)}`);
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '样例视频上传失败');
   } finally {
     storyboard.uploading = false;
   }
+}
+function readVideoAspect(file: File): Promise<'portrait' | 'landscape'> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    const finish = (aspect: 'portrait' | 'landscape') => {
+      URL.revokeObjectURL(url);
+      resolve(aspect);
+    };
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const width = video.videoWidth || 0;
+      const height = video.videoHeight || 0;
+      finish(width > height ? 'landscape' : 'portrait');
+    };
+    video.onerror = () => finish('portrait');
+    video.src = url;
+  });
+}
+function normalizeSampleAspect(value?: string): 'portrait' | 'landscape' | '' {
+  const text = String(value || '').toLowerCase();
+  if (/16\s*[:：]\s*9|landscape|horizontal|横/.test(text)) return 'landscape';
+  if (/9\s*[:：]\s*16|portrait|vertical|竖/.test(text)) return 'portrait';
+  return '';
+}
+function sampleAspectText(value?: string) {
+  return value === 'landscape' ? '横版 16:9' : '竖版 9:16';
 }
 function nextWizardStep() {
   if (wizardStep.value === 1 && !planForm.name) {
@@ -834,15 +959,19 @@ function nextWizardStep() {
     return;
   }
   if (wizardStep.value === 2) {
-    if (!planForm.dateRange.length || !releaseDateIsValid() || !planForm.platforms.length || !planForm.description) {
-      Message.warning('请完善发布日期、发布平台和活动文案，且发布日期必须大于当前时间5天');
+    if (!planForm.dateRange.length || !releaseDateIsValid() || !taskStartIsValid() || !planForm.platforms.length) {
+      Message.warning('请完善发布日期、任务开始时间和发布平台，且发布日期必须大于当前时间5天');
       return;
     }
     syncStoryboards(planForm.storyboardCount);
   }
   if (wizardStep.value === 3) {
-    if (planForm.type === '半原创' && storyboards.value.some(item => !item.requirement || !item.script || !item.sampleVideoUrl)) {
-      Message.warning('请完善每个分镜的拍摄要求、台词并上传样例视频');
+    if (!planForm.description) {
+      Message.warning('请填写活动文案');
+      return;
+    }
+    if (planForm.type === '半原创' && storyboards.value.some(item => !item.requirement || !item.script || !item.sampleAspect || !item.sampleVideoUrl)) {
+      Message.warning('请完善每个分镜的拍摄要求、台词、画面方向并上传对应样例视频');
       return;
     }
     if (planForm.type === '原创' && !planForm.originalRequirement) {
@@ -853,12 +982,12 @@ function nextWizardStep() {
   wizardStep.value++;
 }
 function validatePlan() {
-  if (!planForm.name || !planForm.dateRange.length || !releaseDateIsValid() || !planForm.description || !planForm.platforms.length) {
+  if (!planForm.name || !planForm.dateRange.length || !releaseDateIsValid() || !taskStartIsValid() || !planForm.description || !planForm.platforms.length) {
     Message.warning('请完善活动信息，且发布日期必须大于当前时间5天');
     return false;
   }
   if (!selectedEmployeeIds.value.length) { Message.warning('请至少选择一名员工'); return false; }
-  if (planForm.type === '半原创' && storyboards.value.some(item => !item.requirement || !item.script || !item.sampleVideoUrl)) { Message.warning('请完善每个分镜的拍摄要求、台词并上传样例视频'); return false; }
+  if (planForm.type === '半原创' && storyboards.value.some(item => !item.requirement || !item.script || !item.sampleAspect || !item.sampleVideoUrl)) { Message.warning('请完善每个分镜的拍摄要求、台词、画面方向并上传对应样例视频'); return false; }
   return true;
 }
 function toLocalDateTime(date: string, end = false) { return `${date}T${end ? '23:59:59' : '00:00:00'}`; }
@@ -873,6 +1002,7 @@ function buildTaskInstruction() {
         `${index + 1}.${item.requirement}`,
         `台词：${item.script}`,
         item.sampleVideoUrl && `样例视频：${item.sampleVideoUrl}`,
+        item.sampleAspect && `样例比例：${sampleAspectText(item.sampleAspect)}`,
         item.sampleCoverUrl && `样例封面：${item.sampleCoverUrl}`
       ].filter(Boolean).join('；')).join(' | ')}`
   ].filter(Boolean).join('\n').slice(0, 1000);
@@ -884,7 +1014,7 @@ async function persistPlan(publish: boolean) {
     await updateContentActivity(editingActivityId.value, {
       name: planForm.name,
       objective: planForm.description,
-      startTime: toLocalDateTime(startDate),
+      startTime: planForm.taskStartTime.replace(' ', 'T'),
       endTime: toLocalDateTime(endDate, true),
       taskInstruction,
       creationMode: planForm.type === '原创' ? 'SELF_CREATED' : 'AI_ASSISTED',
@@ -896,7 +1026,7 @@ async function persistPlan(publish: boolean) {
   }
   const activityId = await createContentActivity({
     name: planForm.name, objective: planForm.description,
-    startTime: toLocalDateTime(startDate), endTime: toLocalDateTime(endDate, true)
+    startTime: planForm.taskStartTime.replace(' ', 'T'), endTime: toLocalDateTime(endDate, true)
   });
   const planId = await createContentPlan({
     activityId, name: planForm.name, taskInstruction,
@@ -907,7 +1037,7 @@ async function persistPlan(publish: boolean) {
   if (publish) await publishContentPlan(planId, selectedEmployeeIds.value, `content-plan-${planId}-${Date.now()}`);
 }
 async function saveDraft() {
-  if (!planForm.name || planForm.dateRange.length !== 2 || !releaseDateIsValid() || !planForm.description) {
+  if (!planForm.name || planForm.dateRange.length !== 2 || !releaseDateIsValid() || !taskStartIsValid() || !planForm.description) {
     Message.warning('请填写计划名称、活动文案，并选择大于当前时间5天的发布日期');
     return;
   }
@@ -999,6 +1129,18 @@ function cancelPlan(record: PlanRow) {
         Message.error(error instanceof Error ? error.message : '计划取消失败');
         throw error;
       }
+    }
+  });
+}
+function deletePlan(record: PlanRow) {
+  Modal.warning({
+    title: '删除发布计划',
+    content: `删除后计划“${record.name}”及其待执行员工任务将无法恢复，是否继续？`,
+    hideCancel: false,
+    onOk: async () => {
+      await deleteContentActivity(Number(record.id));
+      Message.success('发布计划已删除');
+      await loadPlans();
     }
   });
 }
@@ -1525,6 +1667,9 @@ small { color:#86909c; }
 .day-head { display:flex; align-items:center; justify-content:space-between; }.day-head strong { font-size:15px; }.day-head span { padding:2px 6px; color:#86909c; background:#f2f3f5; border-radius:10px; font-size:10px; }
 .create-day { width:100%; height:86px; margin-top:10px; color:#165dff; background:transparent; border:1px dashed #bedaff; border-radius:6px; cursor:pointer; opacity:0; }.calendar-day:hover .create-day { opacity:1; }
 .day-tasks { display:grid; gap:6px; margin-top:8px; }.day-tasks button { display:grid; gap:5px; padding:8px; border:1px solid transparent; border-left-width:3px; border-radius:4px; text-align:left; cursor:pointer; transition:box-shadow .2s ease, transform .2s ease; }.day-tasks button:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); transform:translateY(-1px); }.day-tasks button:disabled { cursor:default; opacity:.8; transform:none; }.task-meta { display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; }.task-meta > span { overflow:hidden; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }.task-meta :deep(.arco-tag) { flex:none; height:20px; padding:0 6px; border-radius:10px; line-height:18px; }.day-tasks strong { overflow:hidden; color:#1d2129; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.calendar-task-progress { display:grid; grid-template-columns:minmax(28px,1fr) auto; align-items:center; gap:6px; min-width:0; }
+.calendar-task-progress > span { color:#4e5969; font-size:10px; line-height:12px; white-space:nowrap; }
+.calendar-task-progress :deep(.arco-progress) { min-width:0; }
 .task-active { border-color:#bedaff !important; border-left-color:#165dff !important; background:#e8f3ff; }.task-active .task-meta > span { color:#165dff; }
 .task-draft { border-color:#ffe4ba !important; border-left-color:#ff7d00 !important; background:#fff7e8; }.task-draft .task-meta > span { color:#d25f00; }
 .task-terminated { border-color:#fdcdc5 !important; border-left-color:#f53f3f !important; background:#fff3f0; }.task-terminated .task-meta > span { color:#cb2634; }.task-terminated :deep(.arco-progress-line-bar) { background:#f53f3f !important; }
@@ -1542,11 +1687,13 @@ small { color:#86909c; }
 .inline-wizard-header { display:flex; height:54px; align-items:center; gap:4px; padding:0 12px; border-bottom:1px solid #e5e6eb; }
 .inline-wizard-header strong { font-size:15px; font-weight:500; }
 .wizard-back { color:#4e5969; }
-.wizard-shell { display:flex; min-height:calc(100vh - 155px); flex-direction:column; background:#fff; }
-.wizard-progress { padding:64px 40px 42px; background:#fff; }
+.wizard-shell { display:flex; width:100%; height:calc(100vh - 155px); min-width:0; min-height:0; overflow:hidden; flex-direction:column; background:#fff; }
+.wizard-progress { flex:none; padding:64px 40px 42px; background:#fff; }
 .wizard-progress :deep(.arco-steps) { max-width:760px; margin:0 auto; }
-.wizard-content { width:min(760px, calc(100% - 64px)); margin:0 auto; padding:8px 0 48px; }
-.wizard-card { min-height:0; padding:0; background:#fff; border:0; border-radius:0; }
+.wizard-content { flex:1; min-width:0; min-height:0; overflow-x:hidden; overflow-y:auto; width:min(760px, calc(100% - 64px)); box-sizing:border-box; margin:0 auto; padding:8px 0 48px; scrollbar-width:none; -ms-overflow-style:none; }
+.wizard-content::-webkit-scrollbar { display:none; width:0; height:0; }
+.wizard-card { width:100%; min-width:0; min-height:0; overflow-x:hidden; padding:0; background:#fff; border:0; border-radius:0; }
+.wizard-card :deep(.arco-row),.wizard-card :deep(.arco-col) { min-width:0; max-width:100%; }
 .wizard-card :deep(.arco-form-item) { margin-bottom:24px; }
 .mode-options { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
 .mode-options button { display:grid; grid-template-columns:36px 1fr; gap:3px 12px; padding:22px; color:#4e5969; background:#fff; border:1px solid #e5e6eb; border-radius:8px; text-align:left; cursor:pointer; transition:.2s; }
@@ -1566,14 +1713,25 @@ small { color:#86909c; }
 .storyboard-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
 .storyboard-toolbar > div { display:flex; flex-direction:column; gap:5px; }.storyboard-toolbar strong { font-size:16px; }.storyboard-toolbar span { color:#86909c; font-size:12px; }
 .storyboard-toolbar .storyboard-actions { flex-direction:row; align-items:center; gap:12px; }
-.storyboard-toolbar .storyboard-actions > span { color:#4e5969; }
-.video-upload.large { width:230px; height:408px; margin:0 auto; }
+.storyboard-toolbar .storyboard-actions > span { flex:none; color:#4e5969; white-space:nowrap; }
+.storyboard-content-form { margin-bottom:24px; padding-bottom:4px; border-bottom:1px solid #e5e6eb; }
+.storyboard-editor-grid { width:100%; }
+.storyboard-copy-column,.storyboard-media-column { min-width:0; }
+.storyboard-media-column :deep(.arco-upload-wrapper),.storyboard-media-column :deep(.arco-upload) { display:block; width:100%; }
+.storyboard-media-column :deep(.arco-upload-list) { width:100%; }
+.aspect-options { display:flex; width:100%; }
+.aspect-options :deep(.arco-radio-button) { flex:1; text-align:center; }
+.video-upload.large { box-sizing:border-box; margin:0 auto; transition:width .2s ease, height .2s ease; }
+.video-upload.large.landscape { width:100%; height:auto; aspect-ratio:16/9; }
+.video-upload.large.portrait { width:min(72%, 250px); height:auto; aspect-ratio:9/16; }
 .original-requirement { margin-top:24px; }
 .confirm-summary { display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:24px; border-top:1px solid #e5e6eb; border-left:1px solid #e5e6eb; }
 .confirm-summary > div { min-height:88px; padding:18px 20px; border-right:1px solid #e5e6eb; border-bottom:1px solid #e5e6eb; }
 .confirm-summary span,.confirm-summary strong { display:block; }.confirm-summary span { margin-bottom:8px; color:#86909c; font-size:12px; }.confirm-summary strong { font-size:15px; }
 .confirm-copy { margin-top:22px; padding:20px; background:#f7f8fa; border-radius:6px; }.confirm-copy p { margin:6px 0 18px; color:#4e5969; line-height:1.7; }.confirm-copy p:last-child { margin-bottom:0; }
-.wizard-footer { display:flex; align-items:center; width:min(760px, calc(100% - 64px)); margin:12px auto 44px; }.wizard-footer > span { margin-left:10px; color:#86909c; font-size:12px; }.wizard-footer > .arco-space { margin-left:auto; }
+.wizard-footer { flex:none; width:100%; box-sizing:border-box; padding:16px 32px; background:#fff; border-top:1px solid #e5e6eb; box-shadow:0 -2px 8px rgba(0,0,0,.03); }
+.wizard-footer-actions { display:flex; width:100%; min-width:0; min-height:32px; align-items:center; justify-content:flex-end; gap:8px; margin:0; }
+.wizard-footer-actions > .arco-space { margin-left:0; }
 .form-section { padding:20px 2px 26px; border-bottom:1px solid #e5e6eb; }.form-section:first-child { padding-top:0; }.form-section h3 { display:flex; align-items:center; gap:9px; margin:0 0 20px; font-size:16px; }.form-section h3 span { display:grid; width:24px; height:24px; place-items:center; color:#fff; background:#165dff; border-radius:50%; font-size:12px; }
 .section-title-row { display:flex; align-items:center; justify-content:space-between; }.full-width { width:100%; }.release-date-item :deep(.arco-form-item-extra) { color:#f53f3f; }.account-selector { display:flex; align-items:center; justify-content:flex-start; gap:18px; width:100%; padding:12px 16px; background:#f7f8fa; border-radius:6px; }.account-selector > span { margin-left:auto; color:#4e5969; }.account-selector strong { color:#165dff; }
 .duration-tip { margin-top:6px; color:#86909c; font-size:12px; }.video-upload { display:flex; width:170px; height:230px; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#86909c; background:#f7f8fa; border:1px dashed #c9cdd4; border-radius:8px; }.video-upload svg { color:#165dff; font-size:28px; }.video-upload strong { color:#4e5969; }.video-upload span { font-size:11px; }

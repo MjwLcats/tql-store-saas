@@ -66,6 +66,15 @@
       }
     },
     {
+      "path": "pages/content-tasks/player",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "样例视频",
+        "backgroundColor": "#05070D",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
       "path": "pages/inventory/index",
       "style": {
         "navigationStyle": "custom",

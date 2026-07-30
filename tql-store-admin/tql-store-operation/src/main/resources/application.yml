@@ -22,3 +22,10 @@ management:
     web:
       exposure:
         include: health,info
+wecom:
+  notification:
+    enabled: ${WECOM_ENABLED:false}
+    corp-id: ${WECOM_CORP_ID:}
+    corp-secret: ${WECOM_CORP_SECRET:}
+    agent-id: ${WECOM_AGENT_ID:0}
+    app-base-url: ${WECOM_APP_BASE_URL:}

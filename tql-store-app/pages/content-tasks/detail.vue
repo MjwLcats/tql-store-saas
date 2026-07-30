@@ -87,15 +87,26 @@
 				<view class="shot-workspace">
 					<view v-if="showSampleSection" class="sample-section">
 						<text class="sample-title">样例：</text>
-						<view v-if="activeShot.sampleVideoUrl" class="sample-video-card">
-							<video
-								class="sample-video"
-								:src="activeShot.sampleVideoUrl"
-								:poster="activeShot.sampleCoverUrl"
-								:controls="true"
-								:show-center-play-btn="true"
-								object-fit="cover"
+						<view
+							v-if="activeShot.sampleVideoUrl"
+							class="sample-video-card sample-video-card--ready"
+							:class="sampleCardAspectClass(activeShot)"
+							@click="previewSampleVideo(activeShot)"
+						>
+							<image
+								v-if="activeShot.sampleCoverUrl"
+								class="sample-cover"
+								:src="activeShot.sampleCoverUrl"
+								mode="aspectFill"
 							/>
+							<view v-else class="sample-cover sample-cover--empty">
+								<text class="sample-cover-title">样例视频</text>
+							</view>
+							<view class="sample-video__mask">
+								<text class="sample-play">▶</text>
+							</view>
+							<text class="sample-aspect-badge">{{ sampleAspectLabel(activeShot) }}</text>
+							<text class="sample-play-copy">点击播放</text>
 						</view>
 						<view v-else class="sample-video-card sample-video-card--empty">
 							<text class="sample-empty-title">暂无样例视频</text>
@@ -358,6 +369,7 @@
 						voiceover: apiItem.voiceover || apiItem.script || parsedItem.voiceover || '',
 						sampleVideoUrl: this.resolveAssetUrl(apiItem.sampleVideoUrl || apiItem.exampleVideoUrl || parsedItem.sampleVideoUrl || ''),
 						sampleCoverUrl: this.resolveAssetUrl(apiItem.sampleCoverUrl || apiItem.exampleCoverUrl || parsedItem.sampleCoverUrl || ''),
+						sampleAspect: this.normalizeSampleAspect(apiItem.sampleAspect || apiItem.aspect || parsedItem.sampleAspect || ''),
 						durationText: apiItem.durationText || parsedItem.durationText || '约8s'
 					}
 				})
@@ -376,6 +388,7 @@
 					voiceover: items[index]?.voiceover || '根据后管任务文案生成/朗读当前分镜配音，保持自然语速。',
 					sampleVideoUrl: items[index]?.sampleVideoUrl || '',
 					sampleCoverUrl: items[index]?.sampleCoverUrl || '',
+					sampleAspect: items[index]?.sampleAspect || 'portrait',
 					durationText: items[index]?.durationText || '约8s'
 				}))
 			},
@@ -472,7 +485,7 @@
 			parseStoryboardText(rawText) {
 				const text = String(rawText || '').replace(/^\d+[.．、]\s*/, '').trim()
 				const pick = (label) => {
-					const match = text.match(new RegExp(`${label}[:：]\\s*(https?:\\/\\/[^\\s；;|｜]+)`))
+					const match = text.match(new RegExp(`${label}[:：]\\s*([^；;|｜]+)`))
 					return match ? match[1] : ''
 				}
 				const scriptMatch = text.match(/(?:台词|配音文案)[:：]([^；;|｜]+)/)
@@ -480,15 +493,28 @@
 				return {
 					requirement: text
 						.replace(/(?:台词|配音文案)[:：][^；;|｜]+/g, '')
-						.replace(/(?:样例视频|样例封面|示例视频|示例封面)[:：]\s*https?:\/\/[^\s；;|｜]+/g, '')
+						.replace(/(?:样例视频|样例封面|示例视频|示例封面|样例比例|视频比例)[:：]\s*[^；;|｜]+/g, '')
 						.replace(/(?:时长要求|时长)[:：]?\s*[^；;|｜]+/g, '')
 						.replace(/[；;|｜]+$/g, '')
 						.trim(),
 					voiceover: scriptMatch ? scriptMatch[1].trim() : '',
 					sampleVideoUrl: pick('样例视频') || pick('示例视频'),
 					sampleCoverUrl: pick('样例封面') || pick('示例封面'),
+					sampleAspect: this.normalizeSampleAspect(pick('样例比例') || pick('视频比例')),
 					durationText: durationMatch ? durationMatch[1].trim() : ''
 				}
+			},
+			normalizeSampleAspect(value) {
+				const text = String(value || '').toLowerCase()
+				if (/16\s*[:：]\s*9|landscape|horizontal|横/.test(text)) return 'landscape'
+				if (/9\s*[:：]\s*16|portrait|vertical|竖/.test(text)) return 'portrait'
+				return ''
+			},
+			sampleAspectLabel(shot) {
+				return shot?.sampleAspect === 'landscape' ? '横版 16:9' : '竖版 9:16'
+			},
+			sampleCardAspectClass(shot) {
+				return shot?.sampleAspect === 'landscape' ? 'sample-video-card--landscape' : 'sample-video-card--portrait'
 			},
 			async load() {
 				if (!this.id) { this.loading = false; this.errorMessage = '任务参数无效'; return }
@@ -608,14 +634,11 @@
 					uni.showToast({ title: '暂无样例视频', icon: 'none' })
 					return
 				}
-				if (uni.previewMedia) {
-					uni.previewMedia({ sources: [{ url: shot.sampleVideoUrl, type: 'video', poster: shot.sampleCoverUrl }] })
-					return
-				}
-				uni.setClipboardData({
-					data: shot.sampleVideoUrl,
-					success: () => uni.showToast({ title: '已复制样例视频链接', icon: 'none' })
-				})
+				const src = encodeURIComponent(shot.sampleVideoUrl)
+				const poster = encodeURIComponent(shot.sampleCoverUrl || '')
+				const title = encodeURIComponent(shot.title || '样例视频')
+				const aspect = encodeURIComponent(shot.sampleAspect || 'portrait')
+				uni.navigateTo({ url: `/pages/content-tasks/player?src=${src}&poster=${poster}&title=${title}&aspect=${aspect}` })
 			},
 			removeShotVideo(index) {
 				const videos = [...this.draft.videos]
@@ -779,11 +802,18 @@
 	.shot-workspace { margin-top: 18rpx; }
 	.sample-section { margin-top: 4rpx; }
 	.sample-title { display: block; color: #1d2129; font-size: 28rpx; font-weight: 650; }
-	.sample-video-card { position: relative; width: 236rpx; height: 280rpx; margin-top: 18rpx; overflow: hidden; border-radius: 12rpx; background: #eef1f5; box-shadow: 0 8rpx 22rpx rgba(29,33,41,.08); }
-	.sample-video { width: 100%; height: 100%; }
-	.sample-video__mask { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.18); }
-	.sample-play { display: flex; align-items: center; justify-content: center; width: 72rpx; height: 72rpx; border-radius: 36rpx; background: rgba(255,255,255,.88); color: #1d2129; font-size: 34rpx; line-height: 72rpx; text-indent: 4rpx; }
-	.sample-video-card--empty { display: flex; box-sizing: border-box; align-items: center; justify-content: center; flex-direction: column; padding: 20rpx; border: 1rpx dashed #c9cdd4; background: #f7f8fa; box-shadow: none; }
+	.sample-video-card { position: relative; margin-top: 18rpx; overflow: hidden; border-radius: 18rpx; background: #eef1f5; box-shadow: 0 8rpx 22rpx rgba(29,33,41,.08); }
+	.sample-video-card--ready { background: #111827; }
+	.sample-video-card--portrait { width: 236rpx; height: 420rpx; }
+	.sample-video-card--landscape { width: 520rpx; max-width: 100%; height: 292rpx; }
+	.sample-cover { width: 100%; height: 100%; }
+	.sample-cover--empty { display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #1f2937, #020617); }
+	.sample-cover-title { color: rgba(255,255,255,.72); font-size: 24rpx; font-weight: 650; }
+	.sample-video__mask { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.42)); }
+	.sample-play { display: flex; align-items: center; justify-content: center; width: 82rpx; height: 82rpx; border-radius: 41rpx; background: rgba(255,255,255,.94); color: #111827; font-size: 36rpx; line-height: 82rpx; text-indent: 5rpx; box-shadow: 0 12rpx 30rpx rgba(0,0,0,.28); }
+	.sample-aspect-badge { position: absolute; top: 14rpx; right: 14rpx; padding: 6rpx 14rpx; border-radius: 999rpx; background: rgba(0,0,0,.46); color: #fff; font-size: 20rpx; line-height: 1.2; backdrop-filter: blur(12rpx); -webkit-backdrop-filter: blur(12rpx); }
+	.sample-play-copy { position: absolute; left: 0; right: 0; bottom: 18rpx; color: rgba(255,255,255,.92); font-size: 22rpx; text-align: center; text-shadow: 0 2rpx 8rpx rgba(0,0,0,.35); }
+	.sample-video-card--empty { display: flex; box-sizing: border-box; align-items: center; justify-content: center; flex-direction: column; width: 236rpx; height: 280rpx; padding: 20rpx; border: 1rpx dashed #c9cdd4; background: #f7f8fa; box-shadow: none; }
 	.sample-empty-title { color: #4e5969; font-size: 24rpx; font-weight: 650; }
 	.sample-empty-copy { margin-top: 8rpx; color: #86909c; font-size: 21rpx; line-height: 1.45; text-align: center; }
 	.upload-block { margin-top: 28rpx; padding-top: 4rpx; border-top: 1rpx solid #f2f3f5; }

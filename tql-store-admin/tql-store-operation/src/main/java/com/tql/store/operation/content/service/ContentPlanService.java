@@ -323,6 +323,44 @@ public class ContentPlanService {
     }
 
     @Transactional
+    public void deleteActivity(Long tenantId, Long operatorId, Long activityId) {
+        List<ActivityDeleteSnapshot> activities = jdbcTemplate.query("""
+                SELECT status, start_time
+                FROM ops_content_activity
+                WHERE id = ? AND tenant_id = ? AND deleted = 0
+                FOR UPDATE
+                """, (rs, rowNum) -> new ActivityDeleteSnapshot(
+                rs.getString("status"), rs.getTimestamp("start_time").toLocalDateTime()),
+                activityId, tenantId);
+        if (activities.isEmpty()) {
+            throw new IllegalArgumentException("发布计划不存在或已删除");
+        }
+        ActivityDeleteSnapshot activity = activities.get(0);
+        boolean deletable = "DRAFT".equals(activity.status())
+                || ("ACTIVE".equals(activity.status()) && activity.startTime().isAfter(LocalDateTime.now()));
+        if (!deletable) {
+            throw new IllegalArgumentException("只能删除草稿或待开始状态的任务");
+        }
+        jdbcTemplate.update("""
+                UPDATE ops_content_employee_task task
+                JOIN ops_content_plan plan
+                  ON plan.id = task.plan_id AND plan.tenant_id = task.tenant_id
+                SET task.deleted = 1, task.version = task.version + 1, task.update_by = ?
+                WHERE plan.activity_id = ? AND task.tenant_id = ? AND task.deleted = 0
+                """, operatorId, activityId, tenantId);
+        jdbcTemplate.update("""
+                UPDATE ops_content_plan
+                SET deleted = 1, version = version + 1, update_by = ?
+                WHERE activity_id = ? AND tenant_id = ? AND deleted = 0
+                """, operatorId, activityId, tenantId);
+        jdbcTemplate.update("""
+                UPDATE ops_content_activity
+                SET deleted = 1, version = version + 1, update_by = ?
+                WHERE id = ? AND tenant_id = ? AND deleted = 0
+                """, operatorId, activityId, tenantId);
+    }
+
+    @Transactional
     public PlanPublishView publish(
             Long tenantId,
             Long operatorId,
@@ -670,6 +708,9 @@ public class ContentPlanService {
     }
 
     private record EmployeeTarget(Long id, Long storeId) {
+    }
+
+    private record ActivityDeleteSnapshot(String status, LocalDateTime startTime) {
     }
 
     private record PublishRecord(
