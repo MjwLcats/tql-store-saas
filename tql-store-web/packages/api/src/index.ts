@@ -263,6 +263,134 @@ export const retrySyncTask = (id: number) =>
 export const fetchSyncLogs = (id: number) =>
   request<SyncLogItem[]>({ method: 'GET', url: `/api/integration/sync-tasks/${id}/logs` });
 
+export interface KingdeeStoreOption {
+  id: number; storeCode: string; storeName: string; orgNumber: string;
+}
+export interface KingdeeOutboundTask {
+  id: number; rangeStart: string; rangeEnd: string; status: string;
+  totalItems: number; successItems: number; failedItems: number; creatorName: string;
+  startedAt?: string; finishedAt?: string; createTime: string;
+}
+export interface KingdeeOutboundItem {
+  id: number; taskId: number; storeId: number; storeName: string; orgNumber: string;
+  businessDate: string; status: string; currentPage: number; remoteTotal: number;
+  receivedCount: number; savedCount: number; retryCount: number; errorMessage?: string; finishedAt?: string;
+}
+export interface KingdeeOutboundBill {
+  id: number; storeId: number; storeName: string; billNo: string; billStatusName?: string;
+  orgNumber: string; businessDate: string; auditTime?: string; departmentName?: string;
+  requesterName?: string; entryCount: number; totalAmount: number; syncTime: string;
+}
+export const fetchKingdeeOutboundStores = () =>
+  request<KingdeeStoreOption[]>({ method: 'GET', url: '/api/integration/kingdee-outbound/stores' });
+export const syncKingdeeOrganizations = () =>
+  request<number>({ method: 'POST', url: '/api/integration/kingdee-outbound/organizations/sync' });
+
+export interface StoreMappingItem {
+  systemStoreId: number; systemStoreCode?: string; systemStoreName: string;
+  mappingId?: number; kingdeeOrgId?: number; kingdeeOrgNumber?: string; kingdeeOrgName?: string;
+  hrOrgId?: number; hrOrgCode?: string; hrOrgName?: string;
+  operatorName?: string; updateTime?: string;
+}
+export interface KingdeeMappingOption {
+  id: number; orgNumber: string; orgName: string; bound: boolean;
+}
+export interface HrOrgMappingOption {
+  id: number; orgCode?: string; orgName: string; bound: boolean;
+}
+export const fetchStoreMappings = (params: {keyword?: string; bound?: boolean; page: number; pageSize: number}) =>
+  request<PageResult<StoreMappingItem>>({method:'GET',url:'/api/integration/store-mappings',params:{...params,_t:Date.now()}});
+export const fetchKingdeeMappingOptions = (keyword = '') =>
+  request<KingdeeMappingOption[]>({method:'GET',url:'/api/integration/store-mappings/kingdee-options',params:{keyword,_t:Date.now()}});
+export const fetchHrOrgMappingOptions = (keyword = '') =>
+  request<HrOrgMappingOption[]>({method:'GET',url:'/api/integration/store-mappings/hr-org-options',params:{keyword,_t:Date.now()}});
+export const bindStoreMapping = (systemStoreId:number,payload:{kingdeeOrgId?:number;hrOrgId?:number}) =>
+  request<void>({method:'PUT',url:`/api/integration/store-mappings/${systemStoreId}`,data:payload});
+export const unbindStoreMapping = (systemStoreId:number) =>
+  request<void>({method:'DELETE',url:`/api/integration/store-mappings/${systemStoreId}`});
+export const unbindHrStoreMapping = (systemStoreId:number) =>
+  request<void>({method:'DELETE',url:`/api/integration/store-mappings/${systemStoreId}/hr-org`});
+
+export interface SystemStoreItem {
+  id: number;
+  parentId: number;
+  storeCode: string;
+  storeName: string;
+  sourceType: 'MANUAL' | 'HUALALA';
+  hllShopId?: number;
+  hllShopName?: string;
+  managerUserId?: number;
+  managerName?: string;
+  managerPhone?: string;
+  cityName?: string;
+  address?: string;
+  contactPhone?: string;
+  status: number;
+  sortOrder: number;
+  createTime: string;
+  updateTime: string;
+}
+export interface SystemStoreSavePayload {
+  parentId?: number;
+  storeCode: string;
+  storeName: string;
+  sourceType: 'MANUAL' | 'HUALALA';
+  hllShopId?: number;
+  managerUserId?: number;
+  cityName?: string;
+  address?: string;
+  contactPhone?: string;
+  status: number;
+  sortOrder?: number;
+}
+export interface HllShopOption {
+  id: number;
+  externalShopId: string;
+  shopCode?: string;
+  shopName: string;
+  cityName?: string;
+  address?: string;
+  phone?: string;
+  imported: boolean;
+}
+export interface StoreManagerOption {
+  id: number;
+  name: string;
+  phone?: string;
+  employeeNumber?: string;
+}
+export const fetchSystemStores = (params: {
+  keyword?: string; status?: number; sourceType?: string; page: number; pageSize: number;
+}) => request<PageResult<SystemStoreItem>>({
+  method: 'GET', url: '/api/system/store-management', params: { ...params, _t: Date.now() }
+});
+export const fetchHllShopOptions = (keyword = '', currentStoreId?: number) =>
+  request<HllShopOption[]>({
+    method: 'GET', url: '/api/system/store-management/hll-options',
+    params: { keyword, currentStoreId, _t: Date.now() }
+  });
+export const fetchStoreManagerOptions = (keyword = '') =>
+  request<StoreManagerOption[]>({
+    method: 'GET', url: '/api/system/store-management/manager-options',
+    params: { keyword, _t: Date.now() }
+  });
+export const createSystemStore = (data: SystemStoreSavePayload) =>
+  request<number>({ method: 'POST', url: '/api/system/store-management', data });
+export const updateSystemStore = (id: number, data: SystemStoreSavePayload) =>
+  request<void>({ method: 'PUT', url: `/api/system/store-management/${id}`, data });
+export const deleteSystemStore = (id: number) =>
+  request<void>({ method: 'DELETE', url: `/api/system/store-management/${id}` });
+
+export const createKingdeeOutboundTask = (data: { storeIds: number[]; startDate: string; endDate: string }) =>
+  request<number>({ method: 'POST', url: '/api/integration/kingdee-outbound/tasks', data });
+export const fetchKingdeeOutboundTasks = (page = 1, pageSize = 10) =>
+  request<PageResult<KingdeeOutboundTask>>({ method: 'GET', url: '/api/integration/kingdee-outbound/tasks', params: { page, pageSize, _t: Date.now() } });
+export const fetchKingdeeOutboundTaskItems = (id: number) =>
+  request<KingdeeOutboundItem[]>({ method: 'GET', url: `/api/integration/kingdee-outbound/tasks/${id}/items`, params: { _t: Date.now() } });
+export const fetchKingdeeOutboundBills = (params: {
+  storeId?: number; startDate?: string; endDate?: string; keyword?: string; page: number; pageSize: number;
+}) => request<PageResult<KingdeeOutboundBill>>({ method: 'GET', url: '/api/integration/kingdee-outbound/bills', params: { ...params, _t: Date.now() } });
+
 export interface CostUnit {
   id: number;
   unitCode: string;

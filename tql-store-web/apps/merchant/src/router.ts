@@ -9,9 +9,12 @@ import {
   DashboardPage,
   IntegrationSyncPage,
   InventoryTaskPage,
+  KingdeeOutboundPage,
   LoginPage,
   ProfilePage,
   RoleManagementPage,
+  StoreMappingPage,
+  SystemStorePage,
   UserManagementPage
 } from '@tql-store/ui';
 import { appConfig } from './config';
@@ -25,6 +28,9 @@ export const router = createRouter({
         { path: 'cost/boms', name: 'MerchantCostBom', component: CostBomPage },
         { path: 'cost/inventory-tasks', name: 'MerchantInventoryTasks', component: InventoryTaskPage },
         { path: 'cost/master-data', name: 'MerchantCostMasterData', component: CostMasterDataPage }
+        ,{ path: 'integration/kingdee-outbound', name: 'MerchantKingdeeOutbound', component: KingdeeOutboundPage }
+        ,{ path: 'system/store-mapping', name: 'MerchantStoreMapping', component: StoreMappingPage }
+        ,{ path: 'system/stores', name: 'MerchantSystemStores', component: SystemStorePage }
       ]
     }
   ]
@@ -41,6 +47,9 @@ const componentRegistry = {
   MerchantCostBom: CostBomPage,
   MerchantInventoryTasks: InventoryTaskPage,
   MerchantCostMasterData: CostMasterDataPage
+  ,'kingdee-outbound': KingdeeOutboundPage
+  ,'store-mapping': StoreMappingPage
+  ,'system-stores': SystemStorePage
 } as const;
 
 const aiContentModuleByPath = {

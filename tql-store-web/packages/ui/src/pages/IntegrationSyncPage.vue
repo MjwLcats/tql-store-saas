@@ -16,6 +16,7 @@
                   <a-select v-model="query.provider" placeholder="全部来源" allow-clear>
                     <a-option value="HUALALA">哗啦啦</a-option>
                     <a-option value="HR_BUTLER">人力管家</a-option>
+                    <a-option value="KINGDEE">金蝶</a-option>
                   </a-select>
                 </a-form-item>
               </div>
@@ -28,6 +29,7 @@
                     <a-option value="ORGANIZATION">部门组织</a-option>
                     <a-option value="POSITION">岗位职位</a-option>
                     <a-option value="USER">员工用户</a-option>
+                    <a-option value="OUTBOUND">领料出库单</a-option>
                   </a-select>
                 </a-form-item>
               </div>
@@ -37,8 +39,14 @@
                     <a-option value="PENDING">等待执行</a-option>
                     <a-option value="RUNNING">执行中</a-option>
                     <a-option value="SUCCESS">成功</a-option>
+                    <a-option value="PARTIAL_SUCCESS">部分成功</a-option>
                     <a-option value="FAILED">失败</a-option>
                   </a-select>
+                </a-form-item>
+              </div>
+              <div class="tql-search-item">
+                <a-form-item label="创建日期">
+                  <a-range-picker v-model="createdDates" value-format="YYYY-MM-DD" allow-clear />
                 </a-form-item>
               </div>
             </div>
@@ -98,6 +106,7 @@
           <span v-else>—</span>
         </template>
         <template #createTime="{ record }">{{ formatTime(record.createTime) }}</template>
+        <template #duration="{ record }">{{ formatDuration(record.durationMs) }}</template>
         <template #errorMessage="{ record }">
           <a-tooltip v-if="record.errorMessage" :content="record.errorMessage">
             <span class="error-message">{{ record.errorMessage }}</span>
@@ -221,7 +230,8 @@ import type {
 const loading = ref(false);
 const records = ref<SyncTaskItem[]>([]);
 const total = ref(0);
-const query = reactive({ provider: '', dataType: '', status: '', page: 1, pageSize: 10 });
+const query = reactive({ provider: '', dataType: '', status: '', createdStart: '', createdEnd: '', page: 1, pageSize: 10 });
+const createdDates = ref<string[]>([]);
 const manualVisible = ref(false);
 const manualSubmitting = ref(false);
 const logVisible = ref(false);
@@ -263,6 +273,7 @@ const columns: TableColumnData[] = [
   { title: '同步结果', slotName: 'result', width: 140 },
   { title: '操作人', dataIndex: 'creatorName', width: 120 },
   { title: '创建时间', dataIndex: 'createTime', slotName: 'createTime', width: 180 },
+  { title: '同步时长', dataIndex: 'durationMs', slotName: 'duration', width: 120 },
   { title: '失败原因', dataIndex: 'errorMessage', slotName: 'errorMessage', width: 260 },
   { title: '操作', slotName: 'actions', width: 130, fixed: 'right' }
 ];
@@ -271,6 +282,7 @@ const statusMap: Record<SyncTaskStatus, { label: string; color: string }> = {
   PENDING: { label: '等待执行', color: 'gray' },
   RUNNING: { label: '执行中', color: 'blue' },
   SUCCESS: { label: '成功', color: 'green' },
+  PARTIAL_SUCCESS: { label: '部分成功', color: 'orange' },
   FAILED: { label: '失败', color: 'red' }
 };
 
@@ -290,6 +302,8 @@ onBeforeUnmount(() => {
 async function load(silent = false) {
   if (!silent) loading.value = true;
   try {
+    query.createdStart = createdDates.value?.[0] || '';
+    query.createdEnd = createdDates.value?.[1] || '';
     const result = await fetchSyncTasks(query);
     records.value = result.records;
     total.value = result.total;
@@ -309,6 +323,9 @@ function reset() {
   query.provider = '';
   query.dataType = '';
   query.status = '';
+  query.createdStart = '';
+  query.createdEnd = '';
+  createdDates.value = [];
   query.page = 1;
   load();
 }
@@ -383,7 +400,7 @@ async function showLogs(task: SyncTaskItem) {
 }
 
 function providerLabel(value: SyncProvider) {
-  return value === 'HUALALA' ? '哗啦啦' : '人力管家';
+  return value === 'HUALALA' ? '哗啦啦' : value === 'KINGDEE' ? '金蝶' : '人力管家';
 }
 
 function dataTypeLabel(value: SyncDataType) {
@@ -393,7 +410,8 @@ function dataTypeLabel(value: SyncDataType) {
     DISH_SALES: '菜品销售',
     ORGANIZATION: '部门组织',
     POSITION: '岗位职位',
-    USER: '员工用户'
+    USER: '员工用户',
+    OUTBOUND: '领料出库单'
   }[value];
 }
 
@@ -417,7 +435,8 @@ function syncRange(task: SyncTaskItem) {
       DISH_SALES: '全部菜品销售数据',
       ORGANIZATION: '全部部门组织',
       POSITION: '全部岗位职位',
-      USER: '全部员工用户'
+      USER: '全部员工用户',
+      OUTBOUND: '门店领料出库单'
     }[task.dataType];
   }
   return task.rangeStart === task.rangeEnd ? task.rangeStart : `${task.rangeStart} 至 ${task.rangeEnd}`;
@@ -433,6 +452,15 @@ function formatTime(value?: string) {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
   }).format(new Date(value));
+}
+
+function formatDuration(value?: number) {
+  if (value === undefined || value === null) return '—';
+  if (value < 1000) return `${value} 毫秒`;
+  const seconds = Math.floor(value / 1000);
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes} 分 ${seconds % 60} 秒`;
 }
 
 function localDateString(date: Date) {

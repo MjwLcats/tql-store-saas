@@ -24,12 +24,13 @@ import java.util.Set;
 @Service
 public class SyncTaskService {
 
-    private static final Set<String> PROVIDERS = Set.of("HUALALA", "HR_BUTLER");
+    private static final Set<String> PROVIDERS = Set.of("HUALALA", "HR_BUTLER", "KINGDEE");
     private static final Set<String> SYNC_MODES = Set.of("INCREMENTAL", "FULL");
-    private static final Set<String> STATUSES = Set.of("PENDING", "RUNNING", "SUCCESS", "FAILED");
+    private static final Set<String> STATUSES = Set.of("PENDING", "RUNNING", "SUCCESS", "PARTIAL_SUCCESS", "FAILED");
     private static final Map<String, Set<String>> PROVIDER_DATA_TYPES = Map.of(
             "HUALALA", Set.of("SHOP", "BILL", "DISH_SALES"),
-            "HR_BUTLER", Set.of("ORGANIZATION", "POSITION", "USER")
+            "HR_BUTLER", Set.of("ORGANIZATION", "POSITION", "USER"),
+            "KINGDEE", Set.of("ORGANIZATION", "OUTBOUND")
     );
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -41,7 +42,8 @@ public class SyncTaskService {
     }
 
     public PageResult<SyncTaskView> list(
-            Long tenantId, String provider, String dataType, String status, int page, int pageSize) {
+            Long tenantId, String provider, String dataType, String status,
+            LocalDate createdStart, LocalDate createdEnd, int page, int pageSize) {
         int safePage = Math.max(page, 1);
         int safePageSize = Math.min(Math.max(pageSize, 1), 100);
         StringBuilder where = new StringBuilder(" WHERE t.tenant_id = :tenantId ");
@@ -50,6 +52,14 @@ public class SyncTaskService {
         appendFilter(where, params, "provider", provider, "t.provider");
         appendFilter(where, params, "dataType", dataType, "t.data_type");
         appendFilter(where, params, "status", status, "t.status");
+        if (createdStart != null) {
+            where.append(" AND t.create_time >= :createdStart ");
+            params.addValue("createdStart", createdStart.atStartOfDay());
+        }
+        if (createdEnd != null) {
+            where.append(" AND t.create_time < :createdEndExclusive ");
+            params.addValue("createdEndExclusive", createdEnd.plusDays(1).atStartOfDay());
+        }
 
         Long total = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM integration_sync_task t" + where, params, Long.class);
@@ -61,7 +71,10 @@ public class SyncTaskService {
                        t.range_start, t.range_end, t.status, t.total_count, t.success_count,
                        t.failed_count, t.error_message, t.created_by,
                        COALESCE(u.display_name, u.username, '系统任务') AS creator_name,
-                       t.started_at, t.finished_at, t.create_time
+                       t.started_at, t.finished_at,
+                       CASE WHEN t.started_at IS NULL THEN NULL
+                            ELSE TIMESTAMPDIFF(MICROSECOND,t.started_at,COALESCE(t.finished_at,NOW())) DIV 1000 END duration_ms,
+                       t.create_time
                 FROM integration_sync_task t
                 LEFT JOIN sys_merchant_user u ON u.id = t.created_by AND u.tenant_id = t.tenant_id
                 """ + where + " ORDER BY t.id DESC LIMIT :offset, :pageSize", params,
@@ -83,6 +96,7 @@ public class SyncTaskService {
                         rs.getString("creator_name"),
                         toLocalDateTime(rs.getTimestamp("started_at")),
                         toLocalDateTime(rs.getTimestamp("finished_at")),
+                        rs.getObject("duration_ms", Long.class),
                         toLocalDateTime(rs.getTimestamp("create_time"))
                 ));
         return new PageResult<>(records, total == null ? 0 : total, safePage, safePageSize);

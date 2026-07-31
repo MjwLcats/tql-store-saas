@@ -21,6 +21,7 @@ public record SyncTaskView(
         String creatorName,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
+        Long durationMs,
         LocalDateTime createTime
 ) {
 }

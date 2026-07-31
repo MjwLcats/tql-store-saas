@@ -197,7 +197,7 @@
         </a-button>
         <strong>{{ editingActivityId ? '编辑发布计划' : '创建发布计划' }}</strong>
       </header>
-      <div class="wizard-shell">
+      <div ref="wizardShellRef" class="wizard-shell">
         <div class="wizard-progress">
           <a-steps :current="wizardStep" label-placement="vertical">
             <a-step title="活动信息" description="设置计划名称与任务类型" />
@@ -518,7 +518,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message, Modal, type TableColumnData } from '@arco-design/web-vue';
 import {
   IconArrowRise, IconDownload, IconLeft, IconPlus, IconRefresh, IconRight, IconRobot, IconSearch,
@@ -743,6 +743,19 @@ const activeStoryboard = ref(0);
 const generating = ref(false);
 function openCreate(date?: string) { editingActivityId.value = undefined; resetPlanForm(); wizardStep.value = 1; if (date) planForm.dateRange = [date, date]; createVisible.value = true; loadEmployees(); }
 function leaveCreate() { createVisible.value = false; editingActivityId.value = undefined; wizardStep.value = 1; }
+const wizardShellRef = ref<HTMLElement | null>(null);
+function forwardWizardWheel(event: WheelEvent) {
+  const shell = wizardShellRef.value;
+  const content = shell?.querySelector<HTMLElement>('.wizard-content');
+  if (!shell || !content || content.contains(event.target as Node)) return;
+  content.scrollTop += event.deltaY;
+}
+onMounted(() => {
+  wizardShellRef.value?.addEventListener('wheel', forwardWizardWheel, { passive: true });
+});
+onBeforeUnmount(() => {
+  wizardShellRef.value?.removeEventListener('wheel', forwardWizardWheel);
+});
 function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '组织', employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; selectedEmployeeIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
 function instructionValue(lines: string[], label: string) {
   return lines.find(line => line.startsWith(`${label}：`))?.slice(label.length + 1) || '';

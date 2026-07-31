@@ -413,11 +413,11 @@ export interface UserQuery {
   pageSize: number;
 }
 
-export type SyncProvider = 'HUALALA' | 'HR_BUTLER';
-export type SyncDataType = 'SHOP' | 'BILL' | 'DISH_SALES' | 'ORGANIZATION' | 'POSITION' | 'USER';
+export type SyncProvider = 'HUALALA' | 'HR_BUTLER' | 'KINGDEE';
+export type SyncDataType = 'SHOP' | 'BILL' | 'DISH_SALES' | 'ORGANIZATION' | 'POSITION' | 'USER' | 'OUTBOUND';
 export type SyncMode = 'INCREMENTAL' | 'FULL';
 export type SyncTriggerType = 'MANUAL' | 'SCHEDULED' | 'RETRY';
-export type SyncTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED';
+export type SyncTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED';
 
 export interface SyncTaskItem {
   id: number;
@@ -437,6 +437,7 @@ export interface SyncTaskItem {
   creatorName: string;
   startedAt?: string;
   finishedAt?: string;
+  durationMs?: number;
   createTime: string;
 }
 
@@ -444,6 +445,8 @@ export interface SyncTaskQuery {
   provider?: string;
   dataType?: string;
   status?: string;
+  createdStart?: string;
+  createdEnd?: string;
   page: number;
   pageSize: number;
 }

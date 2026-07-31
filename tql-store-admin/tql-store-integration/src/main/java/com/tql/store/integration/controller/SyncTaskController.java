@@ -40,11 +40,13 @@ public class SyncTaskController {
             @RequestParam(required = false) String provider,
             @RequestParam(required = false) String dataType,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) java.time.LocalDate createdStart,
+            @RequestParam(required = false) java.time.LocalDate createdEnd,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int pageSize) {
         permissionService.requireSyncPermission(userId, tenantId, clientType);
         return ApiResponse.success(syncTaskService.list(
-                tenantId, provider, dataType, status, page, pageSize));
+                tenantId, provider, dataType, status, createdStart, createdEnd, page, pageSize));
     }
 
     @PostMapping

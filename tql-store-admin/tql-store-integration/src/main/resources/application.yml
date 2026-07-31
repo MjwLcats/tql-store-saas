@@ -29,3 +29,12 @@ integration:
     app-secret: ${HR_BUTLER_APP_SECRET:}
     post-concurrency: ${HR_BUTLER_POST_CONCURRENCY:8}
     max-attempts: ${HR_BUTLER_MAX_ATTEMPTS:3}
+  kingdee:
+    enabled: ${KINGDEE_SYNC_ENABLED:false}
+    base-url: ${KINGDEE_BASE_URL:}
+    client-id: ${KINGDEE_CLIENT_ID:}
+    client-secret: ${KINGDEE_CLIENT_SECRET:}
+    username: ${KINGDEE_USERNAME:}
+    account-id: ${KINGDEE_ACCOUNT_ID:}
+    page-size: ${KINGDEE_PAGE_SIZE:100}
+    max-attempts: ${KINGDEE_MAX_ATTEMPTS:3}
