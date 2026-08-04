@@ -18,6 +18,8 @@ import java.util.UUID;
 public class ContentAssetService {
 
     private static final long MAX_VIDEO_SIZE = 200L * 1024L * 1024L;
+    private static final long MAX_IMAGE_SIZE = 10L * 1024L * 1024L;
+    private static final long MAX_AUDIO_SIZE = 50L * 1024L * 1024L;
     private final Path storageRoot;
 
     public ContentAssetService(
@@ -74,6 +76,71 @@ public class ContentAssetService {
         } catch (IOException ex) {
             throw new IllegalStateException("样例视频读取失败", ex);
         }
+    }
+
+    public ContentAssetView uploadSampleCover(Long tenantId, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("请选择视频封面示例");
+        if (file.getSize() > MAX_IMAGE_SIZE) throw new IllegalArgumentException("视频封面示例不能超过10MB");
+        String originalName = file.getOriginalFilename() == null ? "cover.jpg" : file.getOriginalFilename().trim();
+        String lowerName = originalName.toLowerCase(Locale.ROOT);
+        String extension = lowerName.endsWith(".jpeg") ? ".jpeg"
+                : lowerName.endsWith(".jpg") ? ".jpg"
+                : lowerName.endsWith(".png") ? ".png"
+                : lowerName.endsWith(".webp") ? ".webp" : "";
+        if (extension.isEmpty()) throw new IllegalArgumentException("视频封面示例仅支持JPG、PNG、WEBP格式");
+        String storedName = UUID.randomUUID() + extension;
+        Path tenantDirectory = storageRoot.resolve(String.valueOf(tenantId)).resolve("covers").normalize();
+        Path target = tenantDirectory.resolve(storedName).normalize();
+        ensureInsideStorage(target, tenantDirectory);
+        try {
+            Files.createDirectories(tenantDirectory);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            throw new IllegalStateException("视频封面示例保存失败", ex);
+        }
+        return new ContentAssetView("/api/operation/content-assets/covers/" + tenantId + "/" + storedName, originalName, file.getSize());
+    }
+
+    public Resource loadSampleCover(Long tenantId, String fileName) {
+        if (fileName == null || !fileName.matches("[0-9a-fA-F-]{36}\\.(jpg|jpeg|png|webp)")) {
+            throw new IllegalArgumentException("视频封面示例不存在");
+        }
+        Path tenantDirectory = storageRoot.resolve(String.valueOf(tenantId)).resolve("covers").normalize();
+        Path target = tenantDirectory.resolve(fileName).normalize();
+        ensureInsideStorage(target, tenantDirectory);
+        if (!Files.isRegularFile(target)) throw new IllegalArgumentException("视频封面示例不存在");
+        try { return new UrlResource(target.toUri()); }
+        catch (IOException ex) { throw new IllegalStateException("视频封面示例读取失败", ex); }
+    }
+
+    public ContentAssetView uploadBgm(Long tenantId, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("请选择BGM文件");
+        if (file.getSize() > MAX_AUDIO_SIZE) throw new IllegalArgumentException("BGM文件不能超过50MB");
+        String originalName = file.getOriginalFilename() == null ? "bgm.mp3" : file.getOriginalFilename().trim();
+        String lowerName = originalName.toLowerCase(Locale.ROOT);
+        String extension = lowerName.endsWith(".wav") ? ".wav" : lowerName.endsWith(".m4a") ? ".m4a" : lowerName.endsWith(".mp3") ? ".mp3" : "";
+        if (extension.isEmpty()) throw new IllegalArgumentException("BGM仅支持MP3、WAV、M4A格式");
+        String storedName = UUID.randomUUID() + extension;
+        Path tenantDirectory = storageRoot.resolve(String.valueOf(tenantId)).resolve("bgm").normalize();
+        Path target = tenantDirectory.resolve(storedName).normalize();
+        ensureInsideStorage(target, tenantDirectory);
+        try {
+            Files.createDirectories(tenantDirectory);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            throw new IllegalStateException("BGM文件保存失败", ex);
+        }
+        return new ContentAssetView("/api/operation/content-assets/bgm/" + tenantId + "/" + storedName, originalName, file.getSize());
+    }
+
+    public Resource loadBgm(Long tenantId, String fileName) {
+        if (fileName == null || !fileName.matches("[0-9a-fA-F-]{36}\\.(mp3|wav|m4a)")) throw new IllegalArgumentException("BGM文件不存在");
+        Path tenantDirectory = storageRoot.resolve(String.valueOf(tenantId)).resolve("bgm").normalize();
+        Path target = tenantDirectory.resolve(fileName).normalize();
+        ensureInsideStorage(target, tenantDirectory);
+        if (!Files.isRegularFile(target)) throw new IllegalArgumentException("BGM文件不存在");
+        try { return new UrlResource(target.toUri()); }
+        catch (IOException ex) { throw new IllegalStateException("BGM文件读取失败", ex); }
     }
 
     private void ensureInsideStorage(Path target, Path tenantDirectory) {

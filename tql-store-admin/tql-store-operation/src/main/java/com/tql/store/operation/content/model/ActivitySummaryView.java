@@ -7,6 +7,7 @@ public record ActivitySummaryView(
         String name,
         String objective,
         LocalDateTime startTime,
+        LocalDateTime releaseStartTime,
         LocalDateTime endTime,
         String status,
         Long ownerId,
@@ -14,6 +15,9 @@ public record ActivitySummaryView(
         int planCount,
         int employeeCount,
         int completedCount,
+        int completedVideoCount,
+        int totalVideoCount,
+        String creationMode,
         LocalDateTime createdTime
 ) {
 }

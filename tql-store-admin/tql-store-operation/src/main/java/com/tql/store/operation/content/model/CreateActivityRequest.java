@@ -15,6 +15,8 @@ public record CreateActivityRequest(
         String objective,
         @NotNull(message = "活动开始时间不能为空")
         LocalDateTime startTime,
+        @NotNull(message = "发布日期不能为空")
+        LocalDateTime releaseStartTime,
         @NotNull(message = "活动结束时间不能为空")
         @Future(message = "活动结束时间必须晚于当前时间")
         LocalDateTime endTime,

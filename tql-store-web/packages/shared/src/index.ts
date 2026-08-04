@@ -162,6 +162,7 @@ export interface ContentActivityItem {
   name: string;
   objective?: string;
   startTime: string;
+  releaseStartTime: string;
   endTime: string;
   status: ContentActivityStatus;
   ownerId: number;
@@ -169,6 +170,9 @@ export interface ContentActivityItem {
   planCount: number;
   employeeCount: number;
   completedCount: number;
+  completedVideoCount: number;
+  totalVideoCount: number;
+  creationMode?: ContentCreationMode;
   createdTime: string;
 }
 
@@ -190,6 +194,7 @@ export interface CreateContentActivityPayload {
   name: string;
   objective?: string;
   startTime: string;
+  releaseStartTime: string;
   endTime: string;
   ownerId?: number;
 }
@@ -198,11 +203,13 @@ export interface UpdateContentPlanPayload {
   name: string;
   objective?: string;
   startTime: string;
+  releaseStartTime: string;
   endTime: string;
   taskInstruction: string;
   creationMode: string;
   storyboardCount: number;
   trainingPolicy: string;
+  platforms: string[];
   employeeIds: number[];
 }
 
@@ -213,6 +220,7 @@ export interface CreateContentPlanPayload {
   creationMode: ContentCreationMode;
   storyboardCount?: number;
   trainingPolicy: ContentTrainingPolicy;
+  platforms: string[];
   deadline: string;
 }
 
@@ -269,6 +277,25 @@ export interface ContentAccountPayload {
   organizationId?: number;
   employeeId: number;
 }
+
+export interface ContentBgmItem {
+  id: number;
+  bgmName: string;
+  fileUrl: string;
+  originalFileName: string;
+  videoType: string;
+  mood: string;
+  energyLevel: string;
+  vocalType: string;
+  bpm?: number;
+  durationSeconds?: number;
+  copyrightStatus: string;
+  copyrightNote?: string;
+  enabled: boolean;
+  updateTime: string;
+}
+
+export type ContentBgmPayload = Omit<ContentBgmItem, 'id' | 'updateTime'>;
 
 export interface ContentVideoPerformanceItem {
   id: number;

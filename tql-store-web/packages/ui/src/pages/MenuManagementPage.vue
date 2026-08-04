@@ -550,7 +550,7 @@ async function remove(record: MerchantMenuItem) {
   box-shadow: none;
 }
 .general-card :deep(.arco-card-body) { padding: var(--tql-card-padding); }
-.general-card { min-height: 0 !important; }
+.general-card { min-height: 0; }
 .table-toolbar {
   display: flex;
   align-items: center;

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CreatePlanRequest(
         @NotNull(message = "所属活动不能为空")
@@ -25,6 +26,9 @@ public record CreatePlanRequest(
         Integer storyboardCount,
         @NotBlank(message = "前置训练策略不能为空")
         String trainingPolicy,
+        @NotNull(message = "发布平台不能为空")
+        @Size(min = 1, message = "发布平台至少选择一项")
+        List<String> platforms,
         @NotNull(message = "任务截止时间不能为空")
         @Future(message = "任务截止时间必须晚于当前时间")
         LocalDateTime deadline

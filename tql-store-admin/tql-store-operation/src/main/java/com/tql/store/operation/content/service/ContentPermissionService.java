@@ -64,4 +64,17 @@ public class ContentPermissionService {
             throw new SecurityException("无权执行该操作");
         }
     }
+
+    public void requireAny(Long userId, Long tenantId, String clientType, String... permissionCodes) {
+        SecurityException lastException = null;
+        for (String permissionCode : permissionCodes) {
+            try {
+                require(userId, tenantId, clientType, permissionCode);
+                return;
+            } catch (SecurityException exception) {
+                lastException = exception;
+            }
+        }
+        throw lastException == null ? new SecurityException("No permission to perform this operation") : lastException;
+    }
 }

@@ -29,3 +29,7 @@ wecom:
     corp-secret: ${WECOM_CORP_SECRET:}
     agent-id: ${WECOM_AGENT_ID:0}
     app-base-url: ${WECOM_APP_BASE_URL:}
+content:
+  ai:
+    ollama-base-url: ${CONTENT_AI_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+    model: ${CONTENT_AI_MODEL:qwen3:8b}

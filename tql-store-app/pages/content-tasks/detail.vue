@@ -38,7 +38,7 @@
 				</view>
 			</scroll-view>
 
-			<view v-if="activeStepIndex === 0" class="panel-card">
+			<view v-if="activeStepKey === 'task'" class="panel-card">
 				<view class="section-head">
 					<view>
 						<text class="card-title">确认后管下发内容</text>
@@ -63,7 +63,7 @@
 				</view>
 			</view>
 
-			<view v-if="activeStepIndex === 1" class="panel-card">
+			<view v-if="activeStepKey === 'upload'" class="panel-card">
 				<view class="section-head">
 					<view>
 						<text class="card-title">{{ isOriginalTask ? '按要求完成素材采集' : '按分镜完成素材采集' }}</text>
@@ -84,6 +84,24 @@
 						</button>
 					</view>
 				</scroll-view>
+				<view v-if="coverTemplateUrl" class="cover-template-card">
+					<image class="cover-template-image" :class="coverTemplateAspect === 'landscape' ? 'cover-template-image--landscape' : ''" :src="coverTemplateUrl" mode="aspectFill" @click="previewCoverTemplate" />
+					<view class="cover-template-copy">
+						<text class="cover-template-title">视频封面示例</text>
+						<text class="cover-template-desc">发布时请参考该封面的构图、文字层级与视觉风格</text>
+						<text class="cover-template-tip">{{ coverTemplateAspect === 'landscape' ? '横版 16:9' : '竖版 9:16' }} · 点击查看大图</text>
+					</view>
+				</view>
+				<view v-if="referenceBgmUrl" class="bgm-reference-card">
+					<view class="bgm-reference-copy">
+						<text class="bgm-reference-title">参考 BGM · {{ referenceBgmName }}</text>
+						<text v-if="referenceBgmCategory" class="bgm-reference-desc">{{ referenceBgmCategory }}</text>
+					</view>
+					<button class="bgm-play-button" @click="toggleReferenceBgm">
+						<text class="bgm-play-icon">{{ bgmPlaying ? 'Ⅱ' : '▶' }}</text>
+						<text>{{ bgmPlaying ? '暂停播放' : '播放参考 BGM' }}</text>
+					</button>
+				</view>
 				<view class="shot-workspace">
 					<view v-if="showSampleSection" class="sample-section">
 						<text class="sample-title">样例：</text>
@@ -150,7 +168,7 @@
 				</view>
 			</view>
 
-			<view v-if="activeStepIndex === 2" class="panel-card">
+			<view v-if="activeStepKey === 'compose'" class="panel-card">
 				<view class="section-head">
 					<view>
 						<text class="card-title">生成成片前检查素材</text>
@@ -183,7 +201,7 @@
 				<text class="helper-text">当前移动端先保存合成草稿；后端开放合成提交接口后，这里可直接切换为真实提交。</text>
 			</view>
 
-			<view v-if="activeStepIndex === 3" class="panel-card">
+			<view v-if="activeStepKey === 'publish'" class="panel-card">
 				<view class="section-head">
 					<view>
 						<text class="card-title">复制话题并发布到平台</text>
@@ -226,7 +244,7 @@
 				</view>
 			</view>
 
-			<view v-if="activeStepIndex === 4" class="panel-card">
+			<view v-if="activeStepKey === 'callback'" class="panel-card">
 				<view class="section-head">
 					<view>
 						<text class="card-title">填写已发布视频链接</text>
@@ -265,7 +283,7 @@
 <script>
 	import { fetchContentTask } from '@/api/content-tasks.js'
 	import { appConfig } from '@/config/app.js'
-	import { formatDeadline, stageTone } from '@/utils/content-task.js'
+	import { contentCreationType, formatDeadline, stageTone } from '@/utils/content-task.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
 
 	const DEFAULT_DRAFT = Object.freeze({
@@ -290,6 +308,7 @@
 				activeStepIndex: 0,
 				activeShotIndex: 0,
 				showFullInstruction: false,
+				bgmPlaying: false,
 				topicDraft: '',
 				draft: { ...DEFAULT_DRAFT, videos: [], publishLinks: [{ platform: '抖音', url: '' }] },
 				platformOptions: ['抖音', '视频号', '小红书', '快手']
@@ -302,22 +321,48 @@
 			createdText() { return this.task?.createdTime ? new Date(this.task.createdTime).toLocaleString('zh-CN', { hour12: false }) : '—' },
 			hasLongInstruction() { return (this.task?.taskInstruction || '').length > 140 },
 			workbenchSteps() {
-				return [
-					{ title: '任务信息', shortTitle: '任务', desc: '确认计划名称、任务文案、截止时间和状态' },
-					{ title: '视频上传', shortTitle: '上传', desc: '按分镜样例或原创拍摄要求上传竖屏视频' },
-					{ title: '视频合成', shortTitle: '合成', desc: '检查素材并生成合成预览' },
-					{ title: '视频发布', shortTitle: '发布', desc: '复制话题，发布到指定平台' },
-					{ title: '回传链接', shortTitle: '回传', desc: '填写发布链接，完成移动端闭环' }
+				const steps = [
+					{ key: 'task', title: '任务信息', shortTitle: '任务', desc: '确认计划名称、任务文案、截止时间和状态' },
+					{ key: 'upload', title: '视频上传', shortTitle: '上传', desc: '按分镜样例或原创拍摄要求上传竖屏视频' },
+					{ key: 'compose', title: '视频合成', shortTitle: '合成', desc: '检查素材并生成合成预览' },
+					{ key: 'publish', title: '视频发布', shortTitle: '发布', desc: '复制话题，发布到指定平台' },
+					{ key: 'callback', title: '回传链接', shortTitle: '回传', desc: '填写发布链接，完成移动端闭环' }
 				]
+				return this.isOriginalTask ? steps.filter(step => step.key !== 'compose') : steps
 			},
+			activeStepKey() { return this.workbenchSteps[this.activeStepIndex]?.key || 'task' },
 			isOriginalTask() {
-				const mode = String(this.task?.creationMode || '').toUpperCase()
-				if (mode) return mode === 'SELF_CREATED'
-				const source = this.task?.taskInstruction || ''
-				return /拍摄要求[:：]/.test(source) && !/分镜要求[:：]/.test(source)
+				return contentCreationType(this.task || {}) === 'ORIGINAL'
 			},
 			showSampleSection() {
 				return !this.isOriginalTask
+			},
+			coverTemplateUrl() {
+				const direct = this.task?.coverTemplateUrl || this.task?.videoCoverExampleUrl || ''
+				if (direct) return this.resolveAssetUrl(direct)
+				const source = this.task?.taskInstruction || ''
+				const matched = source.match(/视频封面示例[:：]\s*([^\s\n]+)/)
+				return this.resolveAssetUrl(matched ? matched[1].trim() : '')
+			},
+			coverTemplateAspect() {
+				const direct = this.task?.coverTemplateAspect || this.task?.videoCoverAspect || ''
+				if (direct) return this.normalizeSampleAspect(direct) || 'portrait'
+				const source = this.task?.taskInstruction || ''
+				const matched = source.match(/视频封面比例[:：]\s*([^\n]+)/)
+				return this.normalizeSampleAspect(matched ? matched[1] : '') || 'portrait'
+			},
+			referenceBgmUrl() {
+				const source = this.task?.taskInstruction || ''
+				const matched = source.match(/参考BGM地址[:：]\s*([^\s\n]+)/)
+				return this.resolveAssetUrl(matched ? matched[1].trim() : '')
+			},
+			referenceBgmName() {
+				const source = this.task?.taskInstruction || ''
+				return source.match(/参考BGM名称[:：]\s*([^\n]+)/)?.[1]?.trim() || '计划参考配乐'
+			},
+			referenceBgmCategory() {
+				const source = this.task?.taskInstruction || ''
+				return source.match(/参考BGM分类[:：]\s*([^\n]+)/)?.[1]?.trim() || ''
 			},
 			originalRequirementText() {
 				const source = this.task?.taskInstruction || ''
@@ -431,8 +476,8 @@
 			},
 			actionDescription() {
 				if (this.task?.stage === 'LOCKED') return '当前任务待解锁，可先阅读任务要求，完成前置训练后再开始拍摄。'
-				if (this.task?.stage === 'READY_TO_SHOOT') return '查看文案和拍摄要求，按分镜上传素材。'
-				if (this.task?.stage === 'SHOOTING') return '继续补齐剩余分镜素材，准备合成。'
+				if (this.task?.stage === 'READY_TO_SHOOT') return this.isOriginalTask ? '查看文案和拍摄要求，上传原创视频。' : '查看文案和拍摄要求，按分镜上传素材。'
+				if (this.task?.stage === 'SHOOTING') return this.isOriginalTask ? '完成原创视频上传后，直接进入发布步骤。' : '继续补齐剩余分镜素材，准备合成。'
 				if (this.task?.stage === 'PROCESSING') return '系统正在处理作品，可先核对已保存草稿。'
 				if (this.task?.stage === 'PENDING_REVIEW') return '作品已提交审核，可保留发布素材，等待审核结果。'
 				if (this.task?.stage === 'READY_TO_PUBLISH') return '复制话题发布视频，发布后填写链接回传。'
@@ -462,10 +507,10 @@
 				return this.draft.publishTopic || this.defaultPublishTopic
 			},
 			primaryActionLabel() {
-				if (this.activeStepIndex === 0) return '进入视频上传'
-				if (this.activeStepIndex === 1) return this.uploadedCount > 0 ? '检查并合成' : '上传第一个视频'
-				if (this.activeStepIndex === 2) return this.draft.composeReady ? '去发布视频' : '生成合成预览'
-				if (this.activeStepIndex === 3) return '填写回传链接'
+				if (this.activeStepKey === 'task') return '进入视频上传'
+				if (this.activeStepKey === 'upload') return this.uploadedCount > 0 ? (this.isOriginalTask ? '去发布视频' : '检查并合成') : '上传第一个视频'
+				if (this.activeStepKey === 'compose') return this.draft.composeReady ? '去发布视频' : '生成合成预览'
+				if (this.activeStepKey === 'publish') return '填写回传链接'
 				return '保存回传信息'
 			}
 		},
@@ -476,11 +521,41 @@
 		onShow() {
 			if (this.id) this.loadDraft()
 		},
+		onUnload() {
+			this.destroyReferenceBgm()
+		},
 		methods: {
 			resolveAssetUrl(url) {
 				if (!url) return ''
 				if (/^https?:\/\//i.test(url)) return url
 				return `${appConfig.apiBaseUrl.replace(/\/$/, '')}/${String(url).replace(/^\//, '')}`
+			},
+			previewCoverTemplate() {
+				if (!this.coverTemplateUrl) return
+				uni.previewImage({ current: this.coverTemplateUrl, urls: [this.coverTemplateUrl] })
+			},
+			toggleReferenceBgm() {
+				if (!this.referenceBgmUrl) return
+				if (!this._bgmAudioContext) {
+					const audioContext = uni.createInnerAudioContext()
+					audioContext.src = this.referenceBgmUrl
+					audioContext.onPlay(() => { this.bgmPlaying = true })
+					audioContext.onPause(() => { this.bgmPlaying = false })
+					audioContext.onStop(() => { this.bgmPlaying = false })
+					audioContext.onEnded(() => { this.bgmPlaying = false })
+					audioContext.onError(() => {
+						this.bgmPlaying = false
+						uni.showToast({ title: '参考 BGM 播放失败', icon: 'none' })
+					})
+					this._bgmAudioContext = audioContext
+				}
+				if (this.bgmPlaying) this._bgmAudioContext.pause()
+				else this._bgmAudioContext.play()
+			},
+			destroyReferenceBgm() {
+				if (this._bgmAudioContext) this._bgmAudioContext.destroy()
+				this._bgmAudioContext = null
+				this.bgmPlaying = false
 			},
 			parseStoryboardText(rawText) {
 				const text = String(rawText || '').replace(/^\d+[.．、]\s*/, '').trim()
@@ -532,17 +607,14 @@
 				}
 			},
 			initialStepIndex(stage) {
-				const stageSteps = {
-					LOCKED: 0,
-					READY_TO_SHOOT: 1,
-					SHOOTING: 1,
-					NEEDS_REVISION: 1,
-					PROCESSING: 2,
-					PENDING_REVIEW: 2,
-					READY_TO_PUBLISH: 3,
-					COMPLETED: 4
+				const stageKeys = {
+					LOCKED: 'task', READY_TO_SHOOT: 'upload', SHOOTING: 'upload', NEEDS_REVISION: 'upload',
+					PROCESSING: this.isOriginalTask ? 'publish' : 'compose',
+					PENDING_REVIEW: this.isOriginalTask ? 'publish' : 'compose',
+					READY_TO_PUBLISH: 'publish', COMPLETED: 'callback'
 				}
-				return stageSteps[stage] ?? 0
+				const index = this.workbenchSteps.findIndex(step => step.key === (stageKeys[stage] || 'task'))
+				return index < 0 ? 0 : index
 			},
 			loadDraft() {
 				if (!this.id) return
@@ -568,22 +640,22 @@
 				uni.setStorageSync(this.taskDraftKey, this.draft)
 			},
 			handlePrimaryAction() {
-				if (this.activeStepIndex === 0) {
+				if (this.activeStepKey === 'task') {
 					this.activeStepIndex = 1
 					return
 				}
-				if (this.activeStepIndex === 1) {
+				if (this.activeStepKey === 'upload') {
 					if (!this.activeShotVideo) this.chooseShotVideo(this.activeShotIndex)
-					else this.activeStepIndex = 2
+					else this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === (this.isOriginalTask ? 'publish' : 'compose'))
 					return
 				}
-				if (this.activeStepIndex === 2) {
+				if (this.activeStepKey === 'compose') {
 					if (!this.draft.composeReady) this.prepareCompose()
-					else this.activeStepIndex = 3
+					else this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'publish')
 					return
 				}
-				if (this.activeStepIndex === 3) {
-					this.activeStepIndex = 4
+				if (this.activeStepKey === 'publish') {
+					this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'callback')
 					return
 				}
 				this.savePublishLinks()
@@ -654,7 +726,7 @@
 				this.draft = { ...this.draft, composeReady: true }
 				this.saveDraft()
 				uni.showToast({ title: '合成草稿已生成', icon: 'success' })
-				this.activeStepIndex = 3
+				this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'publish')
 			},
 			copyText(value, label) {
 				if (!value) {
@@ -799,6 +871,19 @@
 	.shot-pill__dot { display: inline-flex; align-items: center; justify-content: center; width: 30rpx; height: 30rpx; margin-right: 8rpx; border-radius: 15rpx; background: #f2f3f5; color: inherit; font-size: 18rpx; font-weight: 700; line-height: 30rpx; }
 	.shot-pill--done .shot-pill__dot { background: #f2f3f5; color: #86909c; }
 	.shot-pill--active .shot-pill__dot { background: #ff7d00; color: #fff; }
+	.cover-template-card { display: flex; align-items: center; gap: 22rpx; margin-top: 22rpx; padding: 20rpx; border: 1rpx solid #d9e5ff; border-radius: 16rpx; background: #f7faff; }
+	.cover-template-image { width: 108rpx; height: 192rpx; flex: 0 0 auto; border-radius: 10rpx; background: #eef1f5; }
+	.cover-template-image--landscape { width: 192rpx; height: 108rpx; }
+	.cover-template-copy { min-width: 0; flex: 1; }
+	.cover-template-title { display: block; color: #1d2129; font-size: 27rpx; font-weight: 650; }
+	.cover-template-desc { display: block; margin-top: 10rpx; color: #4e5969; font-size: 23rpx; line-height: 1.55; }
+	.cover-template-tip { display: block; margin-top: 12rpx; color: #165dff; font-size: 21rpx; }
+	.bgm-reference-card { margin-top: 18rpx; padding: 20rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
+	.bgm-reference-copy { margin-bottom: 14rpx; }
+	.bgm-reference-title { display: block; color: #1d2129; font-size: 26rpx; font-weight: 650; }
+	.bgm-reference-desc { display: block; margin-top: 6rpx; color: #86909c; font-size: 22rpx; }
+	.bgm-play-button { display: flex; align-items: center; justify-content: center; width: 100%; height: 72rpx; margin: 14rpx 0 0; border: 1rpx solid #bed4ff; border-radius: 12rpx; background: #f2f7ff; color: #165dff; font-size: 24rpx; font-weight: 600; line-height: 72rpx; }
+	.bgm-play-icon { margin-right: 12rpx; font-size: 22rpx; }
 	.shot-workspace { margin-top: 18rpx; }
 	.sample-section { margin-top: 4rpx; }
 	.sample-title { display: block; color: #1d2129; font-size: 28rpx; font-weight: 650; }

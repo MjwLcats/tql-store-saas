@@ -18,6 +18,20 @@ export function stageTone(stage) {
 	return 'primary'
 }
 
+export function contentCreationType(task = {}) {
+	const mode = String(task.creationMode || '').toUpperCase()
+	if (mode === 'SELF_CREATED') return 'ORIGINAL'
+	if (mode === 'STANDARD_TEMPLATE' || mode === 'AI_ASSISTED') return 'SEMI_ORIGINAL'
+	const instruction = String(task.taskInstruction || '')
+	return /拍摄要求[:：]/.test(instruction) && !/分镜要求[:：]/.test(instruction)
+		? 'ORIGINAL'
+		: 'SEMI_ORIGINAL'
+}
+
+export function contentCreationLabel(task) {
+	return contentCreationType(task) === 'ORIGINAL' ? '原创' : '半原创'
+}
+
 export function formatDeadline(value, now = new Date()) {
 	if (!value) return '未设置截止时间'
 	const target = new Date(value)

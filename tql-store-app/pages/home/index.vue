@@ -32,7 +32,7 @@
 					<button v-for="task in tasks.slice(0, 3)" :key="task.id" class="task-row" hover-class="list-row--pressed" @click="openTask(task)">
 						<view class="task-status" :class="`task-status--${task.tone}`"></view>
 						<view class="task-copy">
-							<text class="task-title">{{ task.title }}</text>
+							<view class="task-title-line"><text class="task-title">{{ task.title }}</text><text class="creation-tag">{{ task.creationLabel }}</text></view>
 							<text class="task-meta">{{ task.owner }} · {{ task.time }}</text>
 						</view>
 						<text class="task-tag">{{ task.status }}</text>
@@ -56,7 +56,7 @@
 					<button v-for="task in filteredTasks" :key="task.id" class="task-row task-row--large" hover-class="list-row--pressed" @click="openTask(task)">
 						<view class="task-status" :class="`task-status--${task.tone}`"></view>
 						<view class="task-copy">
-							<view class="task-line"><text class="task-title">{{ task.title }}</text><text class="task-tag">{{ task.status }}</text></view>
+							<view class="task-line"><view class="task-title-line"><text class="task-title">{{ task.title }}</text><text class="creation-tag">{{ task.creationLabel }}</text></view><text class="task-tag">{{ task.status }}</text></view>
 							<text class="task-description">{{ task.description }}</text>
 							<text class="task-meta">{{ task.owner }} · 截止 {{ task.time }}</text>
 						</view>
@@ -154,7 +154,7 @@
 	import { logout } from '@/api/auth.js'
 	import { fetchContentTasks } from '@/api/content-tasks.js'
 	import { clearSession, getSession } from '@/utils/auth.js'
-	import { formatDeadline, stageTone } from '@/utils/content-task.js'
+	import { contentCreationLabel, formatDeadline, stageTone } from '@/utils/content-task.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
 
 	export default {
@@ -236,6 +236,7 @@
 						title: task.planName,
 						status: task.stageLabel,
 						description: task.actionHint,
+						creationLabel: contentCreationLabel(task),
 						owner: task.activityName,
 						time: formatDeadline(task.deadline),
 						tone: stageTone(task.stage)
@@ -363,7 +364,9 @@
 	.task-status--primary { background: var(--primary); box-shadow: 0 0 0 7rpx rgba(22,93,255,.09); }
 	.task-status--muted { background: #c9cdd4; box-shadow: 0 0 0 7rpx rgba(201,205,212,.15); }
 	.task-copy { flex: 1; min-width: 0; }
+	.task-title-line { display: flex; align-items: center; min-width: 0; }
 	.task-title { display: block; overflow: hidden; font-size: 27rpx; font-weight: 550; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+	.creation-tag { flex: 0 0 auto; margin-left: 12rpx; padding: 5rpx 10rpx; border: 1rpx solid #bed4ff; border-radius: 8rpx; background: #f2f7ff; color: #165dff; font-size: 18rpx; line-height: 1; }
 	.task-meta { display: block; margin-top: 10rpx; color: var(--muted); font-size: 21rpx; line-height: 1.3; }
 	.task-tag { flex: 0 0 auto; margin-left: 18rpx; padding: 8rpx 13rpx; border-radius: 999rpx; background: var(--soft); color: #4e5969; font-size: 19rpx; line-height: 1; }
 

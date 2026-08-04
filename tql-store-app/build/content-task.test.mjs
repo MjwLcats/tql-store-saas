@@ -7,7 +7,7 @@ const source = await readFile(
 	'utf8'
 )
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-const { categoryLabel, formatDeadline, stageTone } = await import(moduleUrl)
+const { categoryLabel, contentCreationLabel, contentCreationType, formatDeadline, stageTone } = await import(moduleUrl)
 
 test('maps internal stages to stable UI tones', () => {
 	assert.equal(stageTone('READY_TO_SHOOT'), 'primary')
@@ -30,4 +30,12 @@ test('uses business category labels', () => {
 	assert.equal(categoryLabel('TODO'), '待完成')
 	assert.equal(categoryLabel('PROCESSING'), '处理中')
 	assert.equal(categoryLabel('UNKNOWN'), '全部')
+})
+
+test('maps backend creation modes to employee-facing video types', () => {
+	assert.equal(contentCreationType({ creationMode: 'SELF_CREATED' }), 'ORIGINAL')
+	assert.equal(contentCreationLabel({ creationMode: 'SELF_CREATED' }), '原创')
+	assert.equal(contentCreationLabel({ creationMode: 'STANDARD_TEMPLATE' }), '半原创')
+	assert.equal(contentCreationLabel({ creationMode: 'AI_ASSISTED' }), '半原创')
+	assert.equal(contentCreationLabel({ taskInstruction: '拍摄要求：自由拍摄' }), '原创')
 })

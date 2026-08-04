@@ -16,7 +16,7 @@
 
     <section class="login-form-panel">
       <div class="login-card">
-        <div class="mobile-brand"><BrandMark :title="config.shortTitle" /></div>
+        <div class="mobile-brand"><BrandMark :title="config.shortTitle" tone="light" /></div>
         <h2>{{ config.loginTitle }}</h2>
         <p class="login-subtitle">请输入账号信息进入{{ config.clientType === 'PLATFORM' ? '平台工作台' : '商家工作台' }}</p>
         <a-form ref="formRef" :model="form" layout="vertical" autocomplete="on" @submit-success="handleLogin">
@@ -119,28 +119,37 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-.login-page { display: grid; width: 100%; height: 100%; min-height: 660px; grid-template-columns: minmax(420px, 42%) 1fr; background: #fff; }
-.login-brand-panel { position: relative; display: flex; overflow: hidden; flex-direction: column; padding: 34px 48px; color: #fff; background: #172033; }
+.login-page { display: grid; width: 100%; height: 100%; min-height: 660px; grid-template-columns: minmax(420px, 42%) 1fr; background: var(--tql-color-white); }
+.login-brand-panel { position: relative; display: flex; overflow: hidden; flex-direction: column; padding: 34px 48px; color: var(--tql-color-white); background: var(--tql-sidebar); }
 .login-brand-panel::before { position: absolute; top: -190px; right: -210px; width: 520px; height: 520px; content: ''; border: 1px solid rgba(64,128,255,.2); border-radius: 50%; box-shadow: 0 0 0 70px rgba(64,128,255,.035), 0 0 0 140px rgba(64,128,255,.025); }
-.login-brand-panel::after { position: absolute; right: 36px; bottom: 60px; width: 230px; height: 190px; content: ''; opacity: .65; background-image: linear-gradient(rgba(64,128,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(64,128,255,.16) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(135deg, transparent, #000); }
+.login-brand-panel::after { position: absolute; right: 36px; bottom: 60px; width: 230px; height: 190px; content: ''; opacity: .65; background-image: linear-gradient(rgba(64,128,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(64,128,255,.16) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(135deg, transparent, var(--tql-color-black)); }
 .brand-top { position: relative; z-index: 1; }
 .brand-copy { position: relative; z-index: 1; max-width: 430px; margin: auto 0; }
 .brand-copy h1 { margin: 0 0 24px; font-size: clamp(36px, 3.5vw, 54px); font-weight: 600; line-height: 1.25; letter-spacing: 1px; }
-.brand-copy p { max-width: 370px; margin: 0 0 34px; color: #c9cdd4; font-size: 16px; line-height: 1.8; }
-.brand-points { display: flex; flex-direction: column; gap: 15px; color: #e5e6eb; font-size: 14px; }
+.brand-copy p { max-width: 370px; margin: 0 0 34px; color: var(--tql-text-disabled); font-size: 16px; line-height: 1.8; }
+.brand-points { display: flex; flex-direction: column; gap: 15px; color: var(--tql-border); font-size: 14px; }
 .brand-points span { display: flex; align-items: center; gap: 9px; }
-.brand-points svg { color: #4080ff; font-size: 16px; }
-.brand-footer { position: relative; z-index: 1; margin: 0; color: #6b778d; font-size: 12px; }
+.brand-points svg { color: var(--tql-primary-hover); font-size: 16px; }
+.brand-footer { position: relative; z-index: 1; margin: 0; color: var(--tql-text-sidebar-muted); font-size: 12px; }
 .login-form-panel { position: relative; display: flex; align-items: center; justify-content: center; padding: 56px; }
 .login-card { width: 100%; max-width: 410px; }
 .mobile-brand { display: none; }
-.login-card h2 { margin: 0 0 10px; color: #1d2129; font-size: 28px; font-weight: 600; }
-.login-subtitle { margin: 0 0 34px; color: #86909c; font-size: 14px; }
-.login-options { display: flex; align-items: center; justify-content: space-between; margin: -2px 0 22px; color: #86909c; font-size: 12px; }
+.login-card h2 { margin: 0 0 10px; color: var(--tql-text-primary); font-size: 28px; font-weight: 600; }
+.login-subtitle { margin: 0 0 34px; color: var(--tql-text-tertiary); font-size: 14px; }
+.login-options { display: flex; align-items: center; justify-content: space-between; margin: -2px 0 22px; color: var(--tql-text-tertiary); font-size: 12px; }
 .login-button { height: 44px; font-weight: 500; }
-.copyright { position: absolute; bottom: 24px; color: #c9cdd4; font-size: 12px; }
+.copyright { position: absolute; bottom: 24px; color: var(--tql-text-disabled); font-size: 12px; }
 :deep(.arco-form-item-label-col) { font-weight: 500; }
-:deep(.arco-input-wrapper) { height: 44px; background: #f7f8fa; border-color: transparent; }
-:deep(.arco-input-wrapper:hover), :deep(.arco-input-focus) { background: #fff; border-color: #4080ff; }
+:deep(.arco-input-wrapper) { height: 44px; background: var(--tql-bg-subtle); border-color: transparent; }
+:deep(.arco-input-wrapper:hover), :deep(.arco-input-focus) { background: var(--tql-color-white); border-color: var(--tql-primary-hover); }
 @media (max-width: 1100px) { .login-page { grid-template-columns: 400px 1fr; } .login-brand-panel { padding: 32px; } }
+@media (max-width: 760px) {
+  .login-page { display: block; min-height: 100dvh; }
+  .login-brand-panel { display: none; }
+  .login-form-panel { min-height: 100dvh; padding: var(--tql-space-8) var(--tql-space-6) 72px; }
+  .mobile-brand { display: block; margin-bottom: 48px; }
+  .login-card h2 { font-size: 24px; }
+  .login-subtitle { margin-bottom: var(--tql-space-6); line-height: 1.6; }
+  .copyright { bottom: var(--tql-space-4); }
+}
 </style>

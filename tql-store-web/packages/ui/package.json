@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pages/*.vue": "./src/pages/*.vue"
   },
   "dependencies": {
     "@arco-design/web-vue": "^2.57.0",

@@ -12,7 +12,7 @@
     <a-card class="cost-panel">
       <div class="panel-toolbar">
         <a-tabs v-model:active-key="active" @change="load"><a-tab-pane key="materials" title="物料"/><a-tab-pane key="units" title="计量单位"/><a-tab-pane key="dishes" title="菜品"/></a-tabs>
-        <a-input-search v-model="keyword" allow-clear placeholder="搜索编码或名称" style="width: 260px" />
+        <a-input-search v-model="keyword" allow-clear placeholder="搜索编码或名称" class="toolbar-search" />
       </div>
       <a-table :columns="columns" :data="filteredRecords" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
         <template #status="{ record }"><a-tag :color="record.status === 1 ? 'green' : 'gray'">{{ record.status === 1 ? '启用' : '停用' }}</a-tag></template>
@@ -25,7 +25,7 @@
         <template v-if="active === 'units'">
           <a-form-item label="单位编码" required><a-input v-model="form.code" placeholder="例如 KG" /></a-form-item>
           <a-form-item label="单位名称" required><a-input v-model="form.name" placeholder="例如 千克" /></a-form-item>
-          <a-form-item label="数量精度"><a-input-number v-model="form.scale" :min="0" :max="10" style="width:100%" /></a-form-item>
+          <a-form-item label="数量精度"><a-input-number v-model="form.scale" :min="0" :max="10" class="full-width-control" /></a-form-item>
         </template>
         <template v-else>
           <a-form-item :label="`${activeLabel}编码`" required><a-input v-model="form.code" /></a-form-item>
@@ -59,13 +59,14 @@ const keyword = ref('');
 const units = ref<CostUnit[]>([]);
 const materials = ref<CostMaterial[]>([]);
 const dishes = ref<CostDish[]>([]);
+type MasterRecord = CostUnit | CostMaterial | CostDish;
 const form = reactive({ code: '', name: '', externalCode: '', baseUnitId: undefined as number | undefined, scale: 6 });
 const activeLabel = computed(() => ({ materials: '物料', units: '计量单位', dishes: '菜品' }[active.value]));
-const records = computed(() => active.value === 'materials' ? materials.value : active.value === 'units' ? units.value : dishes.value);
+const records = computed<MasterRecord[]>(() => active.value === 'materials' ? materials.value : active.value === 'units' ? units.value : dishes.value);
 const filteredRecords = computed(() => {
   const key = keyword.value.trim().toLowerCase();
   if (!key) return records.value;
-  return records.value.filter((item: any) => Object.values(item).some(value => String(value ?? '').toLowerCase().includes(key)));
+  return records.value.filter(item => Object.values(item).some(value => String(value ?? '').toLowerCase().includes(key)));
 });
 const summary = computed(() => [
   { label: '物料', value: materials.value.length, note: '统一成本核算口径' },
@@ -117,3 +118,8 @@ async function save() {
   finally { saving.value = false; }
 }
 </script>
+
+<style scoped>
+.toolbar-search { width: 260px; }
+.full-width-control { width: 100%; }
+</style>

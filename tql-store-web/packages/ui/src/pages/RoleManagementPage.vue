@@ -559,7 +559,7 @@ async function removeRoleFromUsers(userIds: number[]) {
   grid-template-columns: 300px minmax(0, 1fr);
   min-height: calc(100vh - 92px);
   overflow: hidden;
-  background: #fff;
+  background: var(--tql-color-white);
   border: 1px solid var(--tql-border);
   border-radius: var(--tql-radius-card);
 }
@@ -567,7 +567,7 @@ async function removeRoleFromUsers(userIds: number[]) {
 .role-rail {
   padding: 16px 12px;
   border-right: 1px solid var(--tql-border);
-  background: #fff;
+  background: var(--tql-color-white);
 }
 
 .role-search {
@@ -646,7 +646,7 @@ async function removeRoleFromUsers(userIds: number[]) {
 
 .role-content {
   min-width: 0;
-  background: #fff;
+  background: var(--tql-color-white);
 }
 
 .role-header {
@@ -743,7 +743,7 @@ async function removeRoleFromUsers(userIds: number[]) {
 
 .permission-matrix :deep(.arco-collapse-item-content) {
   padding: 0;
-  background: #fff;
+  background: var(--tql-color-white);
 }
 
 .permission-table-head,
@@ -757,7 +757,7 @@ async function removeRoleFromUsers(userIds: number[]) {
   align-items: center;
   color: var(--tql-text-secondary);
   font-size: 12px;
-  background: #fafafa;
+  background: var(--tql-bg-muted);
   border-bottom: 1px solid var(--tql-border);
 }
 

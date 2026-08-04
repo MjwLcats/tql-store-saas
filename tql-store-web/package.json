@@ -12,7 +12,10 @@
     "build:platform": "pnpm --filter @tql-store/platform build",
     "build:merchant": "pnpm --filter @tql-store/merchant build",
     "build": "pnpm -r --filter @tql-store/platform --filter @tql-store/merchant build",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "ui:check": "node scripts/ui-check.mjs",
+    "ui:baseline": "node scripts/ui-check.mjs --write-baseline",
+    "verify": "pnpm ui:check && pnpm typecheck && pnpm build"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

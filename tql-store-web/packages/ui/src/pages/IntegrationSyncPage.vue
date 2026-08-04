@@ -176,7 +176,7 @@
           <a-range-picker
             v-model="manualForm.dateRange"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="full-width-control"
             :allow-clear="false"
           />
           <template #extra>单次最多同步31天，退款和反结账数据将在重叠窗口内重新覆盖。</template>
@@ -481,6 +481,7 @@ function localDateString(date: Date) {
 .error-message { display: inline-block; max-width: 220px; overflow: hidden; color: var(--tql-danger); text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .pagination-row { display: flex; justify-content: flex-end; padding-top: 16px; }
 .manual-tip { margin-bottom: 20px; }
+.full-width-control { width: 100%; }
 .log-spin { display: block; min-height: 180px; }
 .log-entry { padding-bottom: 8px; }
 .log-title { display: flex; align-items: center; gap: 8px; color: var(--tql-text-primary); }

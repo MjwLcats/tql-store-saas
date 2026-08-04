@@ -6,6 +6,8 @@ import type {
   ContentItem,
   ContentAccountItem,
   ContentAccountPayload,
+  ContentBgmItem,
+  ContentBgmPayload,
   ContentVideoPerformanceItem,
   ContentDeliveryItem,
   ContentActivityItem,
@@ -106,6 +108,21 @@ export const fetchContents = (params: ContentQuery) =>
 
 export const fetchContentAccounts = () =>
   request<ContentAccountItem[]>({ method: 'GET', url: '/api/operation/content-accounts' });
+export const fetchContentBgms = (params?: { keyword?: string; videoType?: string; mood?: string; enabled?: boolean }) =>
+  request<ContentBgmItem[]>({ method: 'GET', url: '/api/operation/content-bgms', params });
+export const createContentBgm = (data: ContentBgmPayload) =>
+  request<number>({ method: 'POST', url: '/api/operation/content-bgms', data });
+export const updateContentBgm = (id: number, data: ContentBgmPayload) =>
+  request<void>({ method: 'PUT', url: `/api/operation/content-bgms/${id}`, data });
+export const deleteContentBgm = (id: number) =>
+  request<void>({ method: 'DELETE', url: `/api/operation/content-bgms/${id}` });
+export const uploadContentBgm = (file: File) => {
+  const data = new FormData();
+  data.append('file', file);
+  return request<{ url: string; originalName: string; size: number }>({
+    method: 'POST', url: '/api/operation/content-assets/bgm', data
+  });
+};
 export const createContentAccount = (data: ContentAccountPayload) =>
   request<number>({ method: 'POST', url: '/api/operation/content-accounts', data });
 export const updateContentAccount = (id: number, data: ContentAccountPayload) =>
@@ -124,6 +141,10 @@ export const fetchContentActivities = (params?: { keyword?: string; status?: str
   request<ContentActivityItem[]>({ method: 'GET', url: '/api/operation/marketing-activities', params });
 export const terminateContentActivity = (activityId: number) =>
   request<void>({ method: 'POST', url: `/api/operation/marketing-activities/${activityId}/terminate` });
+export const pauseContentActivity = (activityId: number) =>
+  request<void>({ method: 'POST', url: `/api/operation/marketing-activities/${activityId}/pause` });
+export const resumeContentActivity = (activityId: number) =>
+  request<void>({ method: 'POST', url: `/api/operation/marketing-activities/${activityId}/resume` });
 export const deleteContentActivity = (activityId: number) =>
   request<void>({ method: 'DELETE', url: `/api/operation/marketing-activities/${activityId}` });
 export const updateContentActivity = (activityId: number, data: UpdateContentPlanPayload) =>
@@ -151,6 +172,33 @@ export const uploadContentSampleVideo = (file: File) => {
     data
   });
 };
+export const uploadContentSampleCover = (file: File) => {
+  const data = new FormData();
+  data.append('file', file);
+  return request<{ url: string; originalName: string; size: number }>({
+    method: 'POST',
+    url: '/api/operation/content-assets/sample-covers',
+    data
+  });
+};
+export const generateContentVideoDescription = (prompt: string) =>
+  request<{ text: string }>({
+    method: 'POST',
+    url: '/api/operation/content-ai/video-description',
+    data: { prompt }
+  });
+export const generateContentShootingRequirement = (prompt: string) =>
+  request<{ text: string }>({
+    method: 'POST',
+    url: '/api/operation/content-ai/shooting-requirement',
+    data: { prompt }
+  });
+export const generateContentStoryboardScripts = (description: string, count: number) =>
+  request<{ scripts: string[] }>({
+    method: 'POST',
+    url: '/api/operation/content-ai/storyboard-scripts',
+    data: { description, count }
+  });
 export const precheckContentPlan = (planId: number, employeeIds: number[]) =>
   request<ContentPrecheckResult>({
     method: 'POST',

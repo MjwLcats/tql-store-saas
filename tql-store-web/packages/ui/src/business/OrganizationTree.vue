@@ -63,9 +63,9 @@ function selectNode(keys: Array<string | number>) {
 .tree-loading { display: block; min-height: 0; margin-top: var(--tql-space-3); overflow: auto; }
 :deep(.arco-tree) { display: inline-block; width: max-content; min-width: 100%; }
 :deep(.arco-tree-node) { width: max-content; min-width: 100%; }
-:deep(.arco-tree-node-title),
-:deep(.arco-tree-node-title *),
-:deep(.arco-tree-node-title-text) { overflow: visible !important; white-space: nowrap !important; text-overflow: clip !important; }
+.organization-tree :deep(.arco-tree-node-title),
+.organization-tree :deep(.arco-tree-node-title *),
+.organization-tree :deep(.arco-tree-node-title-text) { overflow: visible; white-space: nowrap; text-overflow: clip; }
 :deep(.arco-tree-node-title-block) { border-radius: var(--tql-radius-control); }
 :deep(.arco-tree-node-selected .arco-tree-node-title) { color: var(--tql-primary); background: var(--tql-primary-soft); }
 </style>

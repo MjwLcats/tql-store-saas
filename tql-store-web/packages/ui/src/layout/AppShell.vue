@@ -1,15 +1,16 @@
 <template>
-  <a-layout class="app-layout" :class="{ 'is-collapsed': store.collapsed }">
+  <a-layout class="app-layout" :class="{ 'is-collapsed': effectiveCollapsed }">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <a-layout-header class="layout-navbar">
       <div class="navbar">
         <div class="navbar-brand">
-          <BrandMark :title="config.shortTitle" tone="light" />
+          <BrandMark :title="config.shortTitle" tone="light" :compact="effectiveCollapsed" />
         </div>
 
         <div class="navbar-actions" aria-label="顶部工具栏">
           <a-tooltip v-for="tool in utilityTools" :key="tool.name" :content="tool.name">
             <a-button
-              class="nav-action"
+              class="nav-action utility-action"
               type="outline"
               shape="circle"
               :aria-label="tool.name"
@@ -22,7 +23,7 @@
           <a-tooltip content="消息通知">
             <a-badge dot :count="1">
               <a-button
-                class="nav-action"
+                class="nav-action notification-action"
                 type="outline"
                 shape="circle"
                 aria-label="消息通知"
@@ -34,19 +35,19 @@
           </a-tooltip>
 
           <a-tooltip content="全屏">
-            <a-button class="nav-action" type="outline" shape="circle" aria-label="全屏" @click="toggleFullscreen">
+            <a-button class="nav-action fullscreen-action" type="outline" shape="circle" aria-label="全屏" @click="toggleFullscreen">
               <template #icon><IconFullscreen /></template>
             </a-button>
           </a-tooltip>
 
           <a-tooltip content="页面设置">
-            <a-button class="nav-action" type="outline" shape="circle" aria-label="页面设置" @click="handleUtility('页面设置')">
+            <a-button class="nav-action settings-action" type="outline" shape="circle" aria-label="页面设置" @click="handleUtility('页面设置')">
               <template #icon><IconSettings /></template>
             </a-button>
           </a-tooltip>
 
           <a-tooltip content="主题配置">
-            <a-button class="nav-action" type="outline" shape="circle" aria-label="主题配置" @click="handleUtility('主题配置')">
+            <a-button class="nav-action palette-action" type="outline" shape="circle" aria-label="主题配置" @click="handleUtility('主题配置')">
               <template #icon><IconPalette /></template>
             </a-button>
           </a-tooltip>
@@ -66,16 +67,16 @@
 
     <a-layout-sider
       class="layout-sider"
-      :class="{ collapsed: store.collapsed }"
+      :class="{ collapsed: effectiveCollapsed }"
       :width="220"
       :collapsed-width="48"
-      :collapsed="store.collapsed"
+      :collapsed="effectiveCollapsed"
       :hide-trigger="true"
     >
       <div class="menu-wrapper">
         <a-menu
           class="app-menu"
-          :collapsed="store.collapsed"
+          :collapsed="effectiveCollapsed"
           :selected-keys="selectedKeys"
           v-model:open-keys="openKeys"
           @menu-item-click="handleMenuClick"
@@ -84,16 +85,16 @@
         </a-menu>
       </div>
 
-      <a-tooltip :content="store.collapsed ? '展开菜单' : '收起菜单'" position="right">
-        <button class="menu-collapse-button" type="button" @click="store.toggleCollapsed">
-          <IconMenuFold v-if="!store.collapsed" />
+      <a-tooltip :content="effectiveCollapsed ? '展开菜单' : '收起菜单'" position="right">
+        <button class="menu-collapse-button" type="button" :aria-label="effectiveCollapsed ? '展开菜单' : '收起菜单'" @click="store.toggleCollapsed">
+          <IconMenuFold v-if="!effectiveCollapsed" />
           <IconMenuUnfold v-else />
         </button>
       </a-tooltip>
     </a-layout-sider>
 
     <a-layout class="layout-main">
-      <a-layout-content class="app-content">
+      <a-layout-content id="main-content" class="app-content" role="main" tabindex="-1">
         <a-spin :loading="store.loading" tip="正在加载工作空间" class="content-spin">
           <router-view />
         </a-spin>
@@ -103,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import {
   IconExport,
@@ -130,6 +131,13 @@ const config = inject(APP_CONFIG_KEY)!;
 const store = useAppStore();
 const route = useRoute();
 const router = useRouter();
+const isNarrow = ref(false);
+const effectiveCollapsed = computed(() => store.collapsed || isNarrow.value);
+let narrowMedia: MediaQueryList | undefined;
+
+function syncNarrowLayout(event?: MediaQueryListEvent) {
+  isNarrow.value = event?.matches ?? narrowMedia?.matches ?? false;
+}
 
 const normalizePath = (path?: string) => {
   if (!path) return '/';
@@ -191,13 +199,18 @@ watch(
 );
 
 onMounted(async () => {
+  narrowMedia = window.matchMedia('(max-width: 900px)');
+  syncNarrowLayout();
+  narrowMedia.addEventListener('change', syncNarrowLayout);
   if (import.meta.env.DEV && route.query.preview === '1') return;
   try {
-    await store.loadContext();
+    await store.loadContext(true);
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '工作空间加载失败');
   }
 });
+
+onBeforeUnmount(() => narrowMedia?.removeEventListener('change', syncNarrowLayout));
 
 function handleMenuClick(key: string) {
   if (key !== route.path) router.push(key);
@@ -244,6 +257,19 @@ async function handleUserAction(value: string | number | Record<string, unknown>
   background: var(--tql-page);
 }
 
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: var(--tql-space-2);
+  left: var(--tql-space-2);
+  padding: var(--tql-space-2) var(--tql-space-3);
+  color: var(--tql-color-white);
+  background: var(--tql-primary);
+  border-radius: var(--tql-radius-control);
+  transform: translateY(-160%);
+}
+.skip-link:focus { transform: translateY(0); }
+
 .layout-navbar {
   position: fixed;
   z-index: 100;
@@ -281,8 +307,8 @@ async function handleUserAction(value: string | number | Record<string, unknown>
 }
 
 .nav-action {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   color: var(--tql-text-secondary);
   background: var(--tql-bg-card);
@@ -364,14 +390,14 @@ async function handleUserAction(value: string | number | Record<string, unknown>
   justify-content: center;
   margin-right: 0;
   margin-left: 0;
-  padding-right: 0 !important;
-  padding-left: 0 !important;
+  padding-right: 0;
+  padding-left: 0;
 }
 
-.layout-sider.collapsed .app-menu :deep(.arco-menu-inner) { padding: 4px !important; }
+.layout-sider.collapsed .app-menu :deep(.arco-menu-inner) { padding: 4px; }
 .layout-sider.collapsed .app-menu :deep(.arco-menu-title) { display: none; }
 .layout-sider.collapsed .app-menu :deep(.arco-menu-icon),
-.layout-sider.collapsed .app-menu :deep(.arco-icon) { margin-right: 0 !important; }
+.layout-sider.collapsed .app-menu :deep(.arco-icon) { margin-right: 0; }
 
 .layout-sider.collapsed .app-menu :deep(.arco-menu-selected),
 .layout-sider.collapsed .app-menu :deep(.arco-menu-selected:hover) { background: var(--tql-bg-card); }
@@ -381,8 +407,8 @@ async function handleUserAction(value: string | number | Record<string, unknown>
   right: 12px;
   bottom: 12px;
   display: flex;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -410,7 +436,15 @@ async function handleUserAction(value: string | number | Record<string, unknown>
 .content-spin { display: block; min-height: calc(100vh - 60px); }
 
 @media (max-width: 900px) {
+  .navbar-brand { min-width: 48px; padding: 0 9px; }
   .navbar-actions { gap: 8px; padding-right: 12px; }
-  .navbar-actions :deep(.arco-tooltip-popup-trigger):nth-child(-n+3) { display: none; }
+  .utility-action, .settings-action, .palette-action { display: none; }
+  .layout-sider { width: 48px; }
+  .layout-main { padding-left: 48px; }
+  .menu-collapse-button { display: none; }
+}
+
+@media (max-width: 560px) {
+  .fullscreen-action { display: none; }
 }
 </style>

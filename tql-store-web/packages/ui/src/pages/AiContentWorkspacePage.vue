@@ -15,7 +15,9 @@
             <a-select v-model="filters.status" class="plan-query-control" placeholder="全部状态" allow-clear>
               <a-option value="草稿">草稿</a-option>
               <a-option value="进行中">进行中</a-option>
+              <a-option value="已暂停">已暂停</a-option>
               <a-option value="已终止">已终止</a-option>
+              <a-option value="已完结">已完结</a-option>
             </a-select>
           </a-form-item>
           <a-form-item class="plan-search-item" label="创建人"><a-input v-model="filters.owner" class="plan-query-control" placeholder="工号/姓名" allow-clear /></a-form-item>
@@ -34,8 +36,10 @@
             <span>共 {{ visiblePlans.length }} 条</span>
           </div>
           <a-space>
+            <!-- 列表导出入口暂时隐藏，保留导出逻辑以便后续恢复。
             <a-button v-if="can(P.planExportDelivery)" @click="exportDetails"><template #icon><IconDownload /></template>导出人员</a-button>
             <a-button v-if="can(P.planExportMaterial)" @click="exportMaterials"><template #icon><IconDownload /></template>导出素材收集</a-button>
+            -->
             <a-button v-if="can(P.planCreate)" type="primary" @click="openCreate()"><template #icon><IconPlus /></template>新建</a-button>
           </a-space>
         </div>
@@ -56,18 +60,26 @@
           <template #period="{ record }">
             <div>{{ record.startDate }}</div><small>至 {{ record.endDate }}</small>
           </template>
-          <template #progress="{ record }">
+          <template #personProgress="{ record }">
             <div class="progress-cell">
-              <a-progress :percent="record.progress / 100" size="small" :show-text="false" />
+              <a-progress :percent="record.personProgress / 100" size="small" :show-text="false" />
               <span>{{ record.completed }}/{{ record.accounts }}</span>
+            </div>
+          </template>
+          <template #videoProgress="{ record }">
+            <div class="progress-cell">
+              <a-progress :percent="record.videoProgress / 100" size="small" :show-text="false" />
+              <span>{{ record.completedVideos }}/{{ record.totalVideos }}</span>
             </div>
           </template>
           <template #actions="{ record }">
             <a-space size="mini">
-              <a-link v-if="can(P.planUpdate) && !['已终止', '已完成', '已过期'].includes(record.status)" @click="openEdit(record)">编辑</a-link>
+              <a-link v-if="can(P.planUpdate) && ['草稿', '待开始'].includes(record.status)" @click="openEdit(record)">编辑</a-link>
+              <a-link v-if="can(P.planCancel) && record.status === '进行中'" @click="pausePlan(record)">暂停</a-link>
+              <a-link v-if="can(P.planCancel) && record.status === '已暂停'" @click="resumePlan(record)">恢复</a-link>
               <a-link v-if="can(P.planView)" @click="viewPlan(record)">查看</a-link>
               <a-link v-if="can(P.planDelivery)" @click="viewDelivery(record)">人员</a-link>
-              <a-link v-if="can(P.planCancel) && !['草稿', '待开始', '已终止', '已完成', '已过期'].includes(record.status)" status="danger" @click="cancelPlan(record)">取消</a-link>
+              <a-link v-if="can(P.planCancel) && ['进行中', '已暂停'].includes(record.status)" status="danger" @click="terminatePlan(record)">终止</a-link>
               <a-link v-if="can(P.planCancel) && ['草稿', '待开始'].includes(record.status)" status="danger" @click="deletePlan(record)">删除</a-link>
             </a-space>
           </template>
@@ -87,16 +99,15 @@
       <a-card class="calendar-panel" :bordered="false">
         <div class="calendar-toolbar">
           <div class="month-switch">
-            <a-button shape="circle" @click="shiftMonth(-1)"><IconLeft /></a-button>
+            <a-button shape="circle" aria-label="上一个月" @click="shiftMonth(-1)"><IconLeft /></a-button>
             <strong>{{ calendarYear }}年{{ calendarMonth }}月</strong>
-            <a-button shape="circle" @click="shiftMonth(1)"><IconRight /></a-button>
+            <a-button shape="circle" aria-label="下一个月" @click="shiftMonth(1)"><IconRight /></a-button>
             <a-button @click="goToday">今天</a-button>
           </div>
           <div class="legend">
             <span><i class="legend-create"></i>可创建</span>
             <span><i class="legend-draft"></i>草稿</span>
             <span><i class="legend-active"></i>进行中</span>
-            <span><i class="legend-terminated"></i>已终止</span>
             <span><i class="legend-completed"></i>已完成</span>
             <span><i class="legend-expired"></i>已过期</span>
           </div>
@@ -110,7 +121,13 @@
             :class="{ muted: !cell.current, today: cell.today }"
           >
             <div class="day-head"><strong>{{ cell.day }}</strong><span v-if="cell.tasks.length">{{ cell.tasks.length }}个任务</span></div>
-            <div v-if="cell.tasks.length" class="day-tasks">
+            <div
+              v-if="cell.tasks.length"
+              class="day-tasks"
+              :class="{ scrollable: cell.tasks.length > 2 }"
+              :tabindex="cell.tasks.length > 2 ? 0 : undefined"
+              :aria-label="cell.tasks.length > 2 ? `${cell.date}共有${cell.tasks.length}条任务，可上下滑动查看更多` : undefined"
+            >
               <button v-for="task in cell.tasks" :key="task.id" type="button" :class="`task-${task.tone}`" :disabled="!can(P.calendarView)" @click="viewPlan(task)">
                 <span class="task-meta">
                   <span>{{ task.type }}</span>
@@ -159,7 +176,7 @@
       </a-card>
     </section>
 
-    <section v-else class="module-content">
+    <section v-else-if="activeModule === 'accounts'" class="module-content">
       <a-card class="search-panel" :bordered="false">
         <a-form :model="accountFilters" layout="inline">
           <a-form-item label="账号名称/ID"><a-input v-model="accountFilters.keyword" placeholder="请输入" allow-clear /></a-form-item>
@@ -188,6 +205,29 @@
         </a-table>
       </a-card>
       </section>
+
+    <section v-else class="module-content">
+      <a-card class="search-panel" :bordered="false">
+        <a-form :model="bgmFilters" layout="inline">
+          <a-form-item label="BGM名称"><a-input v-model="bgmFilters.keyword" placeholder="名称或文件名" allow-clear /></a-form-item>
+          <a-form-item label="适用视频"><a-select v-model="bgmFilters.videoType" placeholder="全部类型" allow-clear><a-option v-for="item in bgmVideoTypes" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
+          <a-form-item label="情绪氛围"><a-select v-model="bgmFilters.mood" placeholder="全部氛围" allow-clear><a-option v-for="item in bgmMoods" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
+          <a-form-item label="状态"><a-select v-model="bgmFilters.enabled" placeholder="全部状态" allow-clear><a-option :value="true">启用</a-option><a-option :value="false">停用</a-option></a-select></a-form-item>
+        </a-form>
+        <div class="search-actions"><a-button @click="resetBgmFilters">重置</a-button><a-button type="primary" @click="loadBgms">查询</a-button></div>
+      </a-card>
+      <a-card class="data-panel" :bordered="false">
+        <div class="panel-toolbar"><div><strong>BGM管理</strong><span>共 {{ bgms.length }} 条</span></div><a-button v-if="can(P.bgmCreate)" type="primary" @click="openBgmEditor()"><template #icon><IconPlus /></template>上传BGM</a-button></div>
+        <a-table row-key="id" :columns="bgmColumns" :data="bgms" :loading="bgmLoading" :scroll="{ x: 1500 }" :pagination="{ pageSize: 10 }">
+          <template #audio="{ record }"><div class="bgm-name"><strong>{{ record.bgmName }}</strong><audio :src="record.fileUrl" controls preload="none" /></div></template>
+          <template #classification="{ record }"><a-space wrap><a-tag color="arcoblue">{{ record.videoType }}</a-tag><a-tag color="purple">{{ record.mood }}</a-tag><a-tag>{{ record.energyLevel }}</a-tag></a-space></template>
+          <template #duration="{ record }">{{ formatBgmDuration(record.durationSeconds) }}</template>
+          <template #copyright="{ record }"><div class="bgm-copyright"><strong>{{ record.copyrightStatus }}</strong><span>{{ record.copyrightNote || '未填写范围说明' }}</span></div></template>
+          <template #enabled="{ record }"><a-tag :color="record.enabled ? 'green' : 'gray'">{{ record.enabled ? '启用' : '停用' }}</a-tag></template>
+          <template #actions="{ record }"><a-space size="mini"><a-link v-if="can(P.bgmUpdate)" @click="openBgmEditor(record)">编辑</a-link><a-link v-if="can(P.bgmDelete)" status="danger" @click="removeBgm(record)">删除</a-link></a-space></template>
+        </a-table>
+      </a-card>
+    </section>
     </template>
 
     <section v-else class="inline-wizard-page">
@@ -210,17 +250,19 @@
         <main class="wizard-content">
           <div v-if="wizardStep === 1" class="wizard-card">
             <a-form :model="planForm" layout="vertical">
-              <a-grid :cols="2" :col-gap="24">
+              <a-grid :cols="1" :col-gap="24">
                 <a-grid-item>
                   <a-form-item label="计划名称" required>
-                    <a-input v-model="planForm.name" size="large" placeholder="例如：夏日冰饮重点商品推广" :max-length="80" show-word-limit />
+                    <a-input v-model="planForm.name" size="large" placeholder="例如：夏日冰饮重点商品推广" :max-length="30" show-word-limit />
                   </a-form-item>
                 </a-grid-item>
+                <!-- 发布方式当前固定为员工任务，暂不在创建计划页面展示。
                 <a-grid-item>
                   <a-form-item label="发布方式" required>
                     <a-select v-model="planForm.deliveryMode" size="large"><a-option value="员工任务">员工任务</a-option></a-select>
                   </a-form-item>
                 </a-grid-item>
+                -->
               </a-grid>
               <a-form-item label="下发模式" required>
                 <div class="mode-options">
@@ -239,7 +281,7 @@
             <a-form :model="planForm" layout="vertical">
               <a-grid :cols="2" :col-gap="24">
                 <a-grid-item>
-                  <a-form-item class="release-date-item" label="发布日期" required extra="为确保流程正常进行，发布日期必须大于当前时间5天">
+                  <a-form-item class="release-date-item" label="发布日期" required :extra="editingActivityId ? undefined : '为确保流程正常进行，发布日期必须大于当前时间3天'">
                     <a-range-picker
                       v-model="planForm.dateRange"
                       size="large"
@@ -252,12 +294,34 @@
                 <a-grid-item>
                   <a-form-item label="发布平台" required>
                     <a-checkbox-group v-model="planForm.platforms" class="platform-checks">
-                      <a-checkbox value="抖音">抖音</a-checkbox><a-checkbox value="快手">快手</a-checkbox><a-checkbox value="小红书">小红书</a-checkbox><a-checkbox value="视频号">视频号</a-checkbox>
+                      <a-checkbox
+                        v-for="platform in supportedPublishPlatforms"
+                        :key="platform"
+                        :value="platform"
+                        :disabled="planForm.platforms.length === 1 && planForm.platforms.includes(platform)"
+                      >{{ platform }}</a-checkbox>
                     </a-checkbox-group>
                   </a-form-item>
                 </a-grid-item>
               </a-grid>
-              <a-form-item label="任务开始时间" required extra="到达该时间后，系统将通过企业微信自建应用通知已下发员工">
+              <a-form-item label="视频条数" required>
+                <div class="platform-quota-list">
+                  <div v-for="platform in planForm.platforms" :key="platform" class="platform-quota-row">
+                    <strong>{{ platform }}</strong>
+                    <label>
+                      <span>需要发布</span>
+                      <a-input-number v-model="planForm.platformQuotas[platform].total" :min="1" :precision="0" hide-button />
+                      <span>条</span>
+                    </label>
+                    <label>
+                      <span>每天可发送</span>
+                      <a-input-number v-model="planForm.platformQuotas[platform].daily" :min="1" :precision="0" hide-button />
+                      <span>条</span>
+                    </label>
+                  </div>
+                </div>
+              </a-form-item>
+              <a-form-item label="任务开始时间" required extra="只能选择当前时间到发布日前一天；到达该时间后将通知已下发员工">
                 <a-date-picker
                   v-model="planForm.taskStartTime"
                   class="task-start-picker"
@@ -273,12 +337,12 @@
               </a-form-item>
               <a-form-item label="发布账户" required>
                 <div class="account-selector">
-                  <a-radio-group v-model="planForm.accountMode"><a-radio value="组织">通过组织选择</a-radio><a-radio v-if="can(P.planImportEmployee)" value="人员">导入人员</a-radio></a-radio-group>
-                  <a-button v-if="can(P.planSelectEmployee) && planForm.accountMode === '组织'" @click="openEmployeeSelector">选择组织/人员</a-button>
+                  <a-radio-group v-model="planForm.accountMode"><a-radio value="账号">通过账号选择</a-radio><a-radio v-if="can(P.planImportEmployee)" value="人员">导入人员</a-radio></a-radio-group>
+                  <a-button v-if="can(P.planSelectEmployee) && planForm.accountMode === '账号'" @click="openPlanAccountSelector">选择账号</a-button>
                   <a-button v-if="can(P.planImportEmployee) && planForm.accountMode === '人员'" @click="openPersonnelImport"><template #icon><IconUpload /></template>导入人员</a-button>
                   <span class="selected-count">
-                    已选择 <strong>{{ planForm.employeeCount }}</strong> 名员工
-                    <a-link v-if="planForm.employeeCount" @click="selectedPersonnelVisible = true">查看</a-link>
+                    已选择 <strong>{{ planForm.accountMode === '账号' ? selectedPlanAccountIds.length : planForm.employeeCount }}</strong> {{ planForm.accountMode === '账号' ? '个账号' : '名员工' }}
+                    <a-link v-if="planForm.accountMode === '人员' && planForm.employeeCount" @click="selectedPersonnelVisible = true">查看</a-link>
                   </span>
                 </div>
               </a-form-item>
@@ -287,8 +351,12 @@
 
           <div v-else-if="wizardStep === 3" class="wizard-card">
             <a-form :model="planForm" layout="vertical" class="storyboard-content-form">
-              <a-form-item label="活动文案" required>
-                <a-textarea v-model="planForm.description" placeholder="请描述活动主题、商品卖点和传播目标，AI将据此生成分镜台词" :max-length="1000" show-word-limit :auto-size="{ minRows: 4, maxRows: 7 }" />
+              <div class="description-heading">
+                <strong><span>*</span>视频内容描述</strong>
+                <a-button v-if="can(P.planAiScript)" type="outline" @click="openDescriptionGenerator"><template #icon><IconRobot /></template>AI生成视频内容描述</a-button>
+              </div>
+              <a-form-item>
+                <a-textarea v-model="planForm.description" placeholder="请填写专业、可商用的视频主题、核心卖点、目标受众和表达方式" :max-length="1000" show-word-limit :auto-size="{ minRows: 4, maxRows: 7 }" />
               </a-form-item>
               <a-form-item label="话题">
                 <div class="topic-field">
@@ -310,13 +378,49 @@
               </a-form-item>
             </a-form>
             <template v-if="planForm.type === '半原创'">
-              <div class="storyboard-toolbar">
-                <div><strong>分镜模板</strong><span>员工将按分镜顺序完成拍摄与上传</span></div>
-                <div class="storyboard-actions">
-                  <span>分镜数量</span>
-                  <a-input-number v-model="planForm.storyboardCount" :min="1" :max="8" @change="syncStoryboards" />
-                  <a-button v-if="can(P.planAiScript)" type="outline" :loading="generating" @click="generateScripts"><template #icon><IconRobot /></template>AI生成全部分镜脚本</a-button>
-                </div>
+              <div class="storyboard-reference-layout">
+                <section class="storyboard-config-panel">
+                  <div class="storyboard-toolbar">
+                    <div><strong>分镜基础设置</strong><span>统一设置分镜数量与画面方向</span></div>
+                    <div class="storyboard-actions">
+                      <label><span>分镜数量</span><a-input-number class="storyboard-count-input" v-model="planForm.storyboardCount" :min="1" :max="8" @change="syncStoryboards" /></label>
+                      <a-button type="outline" :loading="generating" @click="generateScripts"><template #icon><IconRobot /></template>AI生成分镜台词</a-button>
+                    </div>
+                  </div>
+                  <div class="storyboard-setting-block">
+                    <div class="setting-label"><strong><i>*</i> 画面方向</strong><span>所有分镜统一使用</span></div>
+                    <a-radio-group v-model="planForm.sampleAspect" type="button" class="aspect-options" @change="handleStoryboardAspectChange">
+                      <a-radio value="portrait">竖版 9:16</a-radio>
+                      <a-radio value="landscape">横版 16:9</a-radio>
+                    </a-radio-group>
+                  </div>
+                </section>
+                <section class="storyboard-config-panel material-reference-panel">
+                  <div class="storyboard-toolbar">
+                    <div><strong>视频素材参考</strong><span>封面与配乐将同步给员工 App</span></div>
+                  </div>
+                  <div class="material-reference-fields">
+                    <div class="storyboard-setting-block cover-setting-block">
+                      <div class="setting-label"><strong>视频封面模板示例</strong><span>选填</span></div>
+                      <a-upload :auto-upload="false" :show-file-list="false" :limit="1" accept="image/jpeg,image/png,image/webp" @change="uploadCoverExample">
+                        <template #upload-button>
+                          <div class="cover-example-upload">
+                            <img v-if="planForm.coverExampleUrl" :src="planForm.coverExampleUrl" alt="视频封面模板示例" />
+                            <IconUpload v-else />
+                            <div><strong>{{ planForm.coverUploading ? '正在上传...' : planForm.coverExampleUrl ? '重新上传封面示例' : '上传封面示例' }}</strong><span>{{ planForm.coverExampleName || `JPG / PNG / WEBP，${sampleAspectText(planForm.sampleAspect)}` }}</span></div>
+                          </div>
+                        </template>
+                      </a-upload>
+                    </div>
+                    <div class="storyboard-setting-block bgm-reference-block">
+                      <div class="setting-label"><strong>BGM</strong><span>选填 · 仅显示已启用</span></div>
+                      <a-select v-model="planForm.bgmId" allow-clear :loading="planBgmLoading" placeholder="选择基础资料中的 BGM">
+                        <a-option v-for="bgm in planBgmOptions" :key="bgm.id" :value="bgm.id" :label="`${bgm.bgmName} · ${bgm.videoType} / ${bgm.mood}`" />
+                      </a-select>
+                      <audio v-if="selectedPlanBgm" class="plan-bgm-audio" :src="selectedPlanBgm.fileUrl" controls preload="none" />
+                    </div>
+                  </div>
+                </section>
               </div>
               <a-tabs v-model:active-key="activeStoryboard" type="card-gutter">
                 <a-tab-pane v-for="(storyboard, index) in storyboards" :key="index" :title="`分镜 ${index + 1}`">
@@ -325,31 +429,30 @@
                       <a-grid-item :span="13" class="storyboard-copy-column">
                         <a-form-item label="拍摄要求" required><a-textarea v-model="storyboard.requirement" placeholder="例如：在光线明亮的场景拍摄，产品保持在画面中央" :auto-size="{ minRows: 5 }" /></a-form-item>
                         <a-form-item label="分镜台词" required>
-                          <a-textarea v-model="storyboard.script" placeholder="点击“AI生成全部分镜脚本”自动生成，也可手动修改" :max-length="300" show-word-limit :auto-size="{ minRows: 5 }" />
-                          <div class="duration-tip">预计话术时长 {{ estimateDuration(storyboard.script) }} 秒</div>
+                          <div class="script-field-content">
+                            <a-textarea v-model="storyboard.script" placeholder="点击“AI生成分镜台词”一键生成，也可手动修改" :max-length="300" show-word-limit :auto-size="{ minRows: 5 }" />
+                            <div class="duration-tip">预计话术时长 {{ estimateDuration(storyboard.script) }} 秒</div>
+                          </div>
                         </a-form-item>
                       </a-grid-item>
                       <a-grid-item :span="12" class="storyboard-media-column">
-                        <a-form-item label="画面方向" required>
-                          <a-radio-group v-model="storyboard.sampleAspect" type="button" class="aspect-options">
-                            <a-radio value="portrait">竖版 9:16</a-radio>
-                            <a-radio value="landscape">横版 16:9</a-radio>
-                          </a-radio-group>
-                        </a-form-item>
                         <a-form-item label="样例视频" required>
-                          <a-upload :auto-upload="false" :limit="1" accept="video/mp4" @change="files => uploadStoryboardSample(index, files)">
+                          <a-upload
+                            :auto-upload="false"
+                            :show-file-list="false"
+                            :limit="1"
+                            accept="video/mp4"
+                            @change="(files, fileItem) => uploadStoryboardSample(index, files, fileItem)"
+                          >
                             <template #upload-button>
-                              <div class="video-upload large" :class="storyboard.sampleAspect === 'landscape' ? 'landscape' : 'portrait'">
+                              <div class="video-upload large" :class="planForm.sampleAspect === 'landscape' ? 'landscape' : 'portrait'">
                                 <IconUpload />
                                 <strong>{{ storyboard.uploading ? '正在上传...' : storyboard.sampleVideoUrl ? '重新上传样例视频' : '上传样例视频' }}</strong>
-                                <span v-if="storyboard.sampleVideoName">{{ storyboard.sampleVideoName }}<br />{{ sampleAspectText(storyboard.sampleAspect) }}，员工端按比例展示</span>
-                                <span v-else>支持 MP4，最大 200MB<br />请上传{{ sampleAspectText(storyboard.sampleAspect) }}视频</span>
+                                <span v-if="storyboard.sampleVideoName">{{ storyboard.sampleVideoName }}<br />{{ sampleAspectText(planForm.sampleAspect) }}，员工端按比例展示</span>
+                                <span v-else>支持 MP4，最大 200MB<br />请上传{{ sampleAspectText(planForm.sampleAspect) }}视频</span>
                               </div>
                             </template>
                           </a-upload>
-                        </a-form-item>
-                        <a-form-item label="样例封面URL">
-                          <a-input v-model="storyboard.sampleCoverUrl" placeholder="可选，视频封面图片URL" />
                         </a-form-item>
                       </a-grid-item>
                     </a-grid>
@@ -359,7 +462,11 @@
             </template>
             <template v-else>
               <a-alert type="info">原创任务不配置分镜，员工将根据以下要求自主完成短视频创作。</a-alert>
-              <a-form-item label="原创拍摄要求" required class="original-requirement">
+              <div class="original-requirement-heading">
+                <strong><span>*</span>原创拍摄要求</strong>
+                <a-button type="outline" :loading="generatingShootingRequirement" @click="generateShootingRequirement"><template #icon><IconRobot /></template>AI生成拍摄要求</a-button>
+              </div>
+              <a-form-item class="original-requirement">
                 <a-textarea v-model="planForm.originalRequirement" placeholder="请说明时长、场景、出镜、商品展示、口播等要求" :auto-size="{ minRows: 10 }" />
               </a-form-item>
             </template>
@@ -371,12 +478,12 @@
               <div><span>任务类型</span><strong>{{ planForm.type }}</strong></div>
               <div><span>发布日期</span><strong>{{ planForm.dateRange.join(' 至 ') || '未设置' }}</strong></div>
               <div><span>任务开始时间</span><strong>{{ planForm.taskStartTime || '未设置' }}</strong></div>
-              <div><span>下发员工</span><strong>{{ planForm.employeeCount }} 人</strong></div>
-              <div><span>发布平台</span><strong>{{ planForm.platforms.join('、') }}</strong></div>
+              <div><span>发布账号</span><strong>{{ selectedPlanAccountIds.length }} 个</strong></div>
+              <div><span>发布平台与数量</span><strong>{{ platformQuotaSummary }}</strong></div>
               <div><span>{{ planForm.type === '半原创' ? '分镜数量' : '创作方式' }}</span><strong>{{ planForm.type === '半原创' ? `${planForm.storyboardCount} 个` : '员工原创' }}</strong></div>
             </div>
             <a-alert type="warning">提交后将按选定账号创建员工任务。建议确认人员范围、发布日期和分镜内容无误后再下发。</a-alert>
-            <div class="confirm-copy"><strong>活动文案</strong><p>{{ planForm.description }}</p></div>
+            <div class="confirm-copy"><strong>视频内容描述</strong><p>{{ planForm.description }}</p></div>
             <div v-if="topicList.length" class="confirm-copy"><strong>发布话题</strong><p>{{ formattedTopics }}</p></div>
           </div>
         </main>
@@ -393,6 +500,29 @@
       </div>
     </section>
 
+    <a-modal
+      v-model:visible="descriptionAiVisible"
+      title="AI生成视频内容描述"
+      width="680px"
+      :ok-loading="generatingDescription"
+      :ok-button-props="{ disabled: !descriptionPrompt.trim() }"
+      :cancel-button-props="{ disabled: generatingDescription }"
+      :closable="!generatingDescription"
+      :mask-closable="!generatingDescription"
+      :on-before-ok="generateVideoDescription"
+      ok-text="生成并填入"
+    >
+      <a-alert type="info">请用自然语言说明想拍什么、面向谁、突出哪些卖点以及希望呈现的风格，AI会整理为专业、可商用的视频内容描述。</a-alert>
+      <a-textarea
+        v-model="descriptionPrompt"
+        class="description-ai-input"
+        placeholder="例如：想拍一条介绍门店夏季新品的视频，面向年轻上班族，突出清爽口感和午后休闲场景，语气轻松自然。"
+        :max-length="2000"
+        show-word-limit
+        :auto-size="{ minRows: 7, maxRows: 12 }"
+      />
+    </a-modal>
+
     <a-drawer v-model:visible="detailVisible" title="发布计划详情" :width="760">
       <div v-if="selectedPlan" class="detail-page">
         <div class="detail-hero">
@@ -402,10 +532,12 @@
         <a-descriptions :column="2" bordered>
           <a-descriptions-item label="任务时间">{{ selectedPlan.startDate }} 至 {{ selectedPlan.endDate }}</a-descriptions-item>
           <a-descriptions-item label="发布账号">{{ selectedPlan.accounts }} 个</a-descriptions-item>
-          <a-descriptions-item label="执行进度">{{ selectedPlan.completed }}/{{ selectedPlan.accounts }}（{{ selectedPlan.progress }}%）</a-descriptions-item>
+          <a-descriptions-item label="执行进度(人员)">{{ selectedPlan.completed }}/{{ selectedPlan.accounts }}（{{ selectedPlan.personProgress }}%）</a-descriptions-item>
+          <a-descriptions-item label="执行进度(视频)">{{ selectedPlan.completedVideos }}/{{ selectedPlan.totalVideos }}（{{ selectedPlan.videoProgress }}%）</a-descriptions-item>
           <a-descriptions-item label="发布平台">抖音、快手、小红书、视频号</a-descriptions-item>
         </a-descriptions>
-        <h3>执行进度</h3><a-progress :percent="selectedPlan.progress / 100" />
+        <h3>执行进度(人员)</h3><a-progress :percent="selectedPlan.personProgress / 100" />
+        <h3>执行进度(视频)</h3><a-progress :percent="selectedPlan.videoProgress / 100" />
         <h3>任务说明</h3><p class="detail-copy">围绕本期重点商品完成短视频拍摄，需按照分镜样例依次上传素材，合成后发布至指定平台并回传作品链接。</p>
       </div>
     </a-drawer>
@@ -464,6 +596,22 @@
       />
     </a-modal>
 
+    <a-modal v-model:visible="planAccountVisible" title="选择发布账号" width="1080px" :ok-loading="accountsLoading" @ok="confirmPlanAccounts">
+      <a-input-search v-model="planAccountKeyword" class="employee-search" size="large" allow-clear placeholder="搜索账号名称、平台账号ID或归属员工" />
+      <a-table
+        v-model:selected-keys="selectedPlanAccountIds"
+        row-key="id"
+        :columns="planAccountColumns"
+        :data="selectablePlanAccounts"
+        :loading="accountsLoading"
+        :row-selection="{ type: 'checkbox', showCheckedAll: true }"
+        :pagination="{ pageSize: 8, showTotal: true }"
+        :scroll="{ x: 900 }"
+      >
+        <template #status="{ record }"><span class="status-dot" :class="record.status === '正常' ? 'status-active' : 'status-draft'">{{ record.status }}</span></template>
+      </a-table>
+    </a-modal>
+
     <a-modal v-model:visible="employeeVisible" title="选择组织/人员" width="960px" :ok-loading="employeesLoading" @ok="confirmEmployees">
       <a-input-search v-model="employeeKeyword" class="employee-search" size="large" allow-clear placeholder="搜索员工姓名、工号或组织" />
       <div class="org-selector">
@@ -509,6 +657,27 @@
       </a-form>
     </a-modal>
 
+    <a-drawer v-model:visible="bgmEditorVisible" :title="bgmEditingId ? '编辑BGM' : '上传BGM'" :width="720" :ok-loading="bgmSaving" @ok="saveBgm">
+      <a-alert type="info">按视频用途、情绪氛围和节奏强度分类，便于运营人员检索，也便于后续由 AI 自动推荐配乐。</a-alert>
+      <a-form ref="bgmFormRef" :model="bgmForm" layout="vertical" class="bgm-form">
+        <a-form-item label="音频文件" required>
+          <a-upload :auto-upload="false" :limit="1" accept=".mp3,.wav,.m4a,audio/*" @change="handleBgmFile"><template #upload-button><a-button :loading="bgmUploading"><IconUpload /> {{ bgmForm.originalFileName || '选择音频文件' }}</a-button></template></a-upload>
+        </a-form-item>
+        <a-form-item field="bgmName" label="BGM名称" required :rules="[{ required: true, message: '请输入BGM名称' }]"><a-input v-model="bgmForm.bgmName" :max-length="128" /></a-form-item>
+        <a-grid :cols="2" :col-gap="16">
+          <a-grid-item><a-form-item field="videoType" label="适用视频类型" required :rules="[{ required: true, message: '请选择视频类型' }]"><a-select v-model="bgmForm.videoType"><a-option v-for="item in bgmVideoTypes" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item field="mood" label="情绪氛围" required :rules="[{ required: true, message: '请选择情绪氛围' }]"><a-select v-model="bgmForm.mood"><a-option v-for="item in bgmMoods" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="节奏强度" required><a-select v-model="bgmForm.energyLevel"><a-option v-for="item in bgmEnergyLevels" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="人声类型" required><a-select v-model="bgmForm.vocalType"><a-option v-for="item in bgmVocalTypes" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="BPM"><a-input-number v-model="bgmForm.bpm" :min="20" :max="300" placeholder="可选" /></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="时长（秒）"><a-input-number v-model="bgmForm.durationSeconds" :min="1" :max="7200" placeholder="可选" /></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="版权状态" required><a-select v-model="bgmForm.copyrightStatus"><a-option v-for="item in bgmCopyrightStatuses" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="状态"><a-switch v-model="bgmForm.enabled" checked-text="启用" unchecked-text="停用" /></a-form-item></a-grid-item>
+        </a-grid>
+        <a-form-item label="版权及商用范围说明"><a-textarea v-model="bgmForm.copyrightNote" :max-length="255" show-word-limit placeholder="例如：已获全媒体商用授权，有效期至2027-12-31" /></a-form-item>
+      </a-form>
+    </a-drawer>
+
     <a-modal v-model:visible="importVisible" title="导入账号" width="620px" :ok-loading="accountImporting" @ok="finishImport">
       <a-alert type="info">请按模板填写平台、账号名称、平台账号ID、账号类型和员工工号。导入后统一进入“待校验”状态。</a-alert>
       <a-button type="text" @click="downloadAccountTemplate"><IconDownload /> 下载导入模板.csv</a-button>
@@ -519,37 +688,61 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { Message, Modal, type TableColumnData } from '@arco-design/web-vue';
+import { Message, Modal, type FormInstance, type TableColumnData } from '@arco-design/web-vue';
 import {
   IconArrowRise, IconDownload, IconLeft, IconPlus, IconRefresh, IconRight, IconRobot, IconSearch,
   IconUpload, IconVideoCamera
 } from '@arco-design/web-vue/es/icon';
 import {
-  createContentAccount, createContentActivity, createContentPlan, deleteContentAccounts, deleteContentActivity,
+  createContentAccount, createContentActivity, createContentPlan, createContentBgm, deleteContentAccounts, deleteContentActivity, deleteContentBgm,
   fetchActivityPlans, fetchContentAccounts, fetchContentActivities, fetchContentDeliveryTasks,
   downloadPersonnelImportTemplate, fetchContentAccountOrganizations, fetchContentAccountUsers,
-  fetchContentTaskOrganizations, fetchContentTaskUsers, fetchContentVideoPerformance, importContentAccounts,
-  publishContentPlan, terminateContentActivity, updateContentAccount, updateContentActivity,
-  uploadContentSampleVideo, validatePersonnelImport
+  fetchContentTaskOrganizations, fetchContentTaskUsers, fetchContentVideoPerformance, generateContentStoryboardScripts,
+  generateContentShootingRequirement, generateContentVideoDescription, importContentAccounts,
+  pauseContentActivity, publishContentPlan, resumeContentActivity, terminateContentActivity, updateContentAccount, updateContentActivity,
+  fetchContentBgms, updateContentBgm, uploadContentBgm, uploadContentSampleCover, uploadContentSampleVideo, validatePersonnelImport
 } from '@tql-store/api';
 import { usePermission } from '@tql-store/auth';
-import type { ContentAccountItem, ContentAccountPayload, ContentDeliveryItem, ContentVideoPerformanceItem, OrganizationOption, PersonnelImportResult, UserItem } from '@tql-store/shared';
+import type { ContentAccountItem, ContentAccountPayload, ContentBgmItem, ContentBgmPayload, ContentDeliveryItem, ContentVideoPerformanceItem, OrganizationOption, PersonnelImportResult, UserItem } from '@tql-store/shared';
 import OrganizationCollapseNode from '../components/OrganizationCollapseNode.vue';
 
-type ModuleKey = 'plans' | 'calendar' | 'analytics' | 'accounts';
+type ModuleKey = 'plans' | 'calendar' | 'analytics' | 'accounts' | 'bgm';
 type PlanRow = {
   id: string | number; type: string; name: string; owner: string; status: string;
-  accounts: number; completed: number; progress: number; startDate: string; endDate: string; startTime: string; tone?: string;
+  accounts: number; completed: number; progress: number; personProgress: number;
+  completedVideos: number; totalVideos: number; videoProgress: number;
+  startDate: string; endDate: string; startTime: string; tone?: string;
   objective?: string; rawStatus?: string;
 };
-type CalendarTone = 'draft' | 'active' | 'terminated' | 'completed' | 'expired';
+type CalendarTone = 'draft' | 'active' | 'paused' | 'terminated' | 'completed' | 'expired';
+type UploadFileEntry = File | { file?: File; originFile?: File; raw?: File };
+
+function getUploadFile(...sources: unknown[]): File | undefined {
+  for (const source of sources) {
+    if (!source) continue;
+    if (Array.isArray(source)) {
+      const file = getUploadFile(...source);
+      if (file) return file;
+      continue;
+    }
+    if (source instanceof File) return source;
+    if (typeof source === 'object') {
+      const entry = source as { file?: unknown; originFile?: unknown; raw?: unknown };
+      const file = getUploadFile(entry.file, entry.originFile, entry.raw);
+      if (file) return file;
+    }
+  }
+  return undefined;
+}
 
 const activityStatusMeta: Record<string, { label: string; tone: CalendarTone }> = {
   DRAFT: { label: '草稿', tone: 'draft' },
   ACTIVE: { label: '进行中', tone: 'active' },
+  PAUSED: { label: '已暂停', tone: 'paused' },
   TERMINATED: { label: '已终止', tone: 'terminated' },
-  COMPLETED: { label: '已完成', tone: 'completed' },
-  EXPIRED: { label: '已过期', tone: 'expired' }
+  COMPLETED: { label: '已完结', tone: 'completed' },
+  ENDED: { label: '已完结', tone: 'completed' },
+  EXPIRED: { label: '已完结', tone: 'expired' }
 };
 
 const props = withDefaults(defineProps<{ module?: ModuleKey }>(), { module: 'plans' });
@@ -580,7 +773,11 @@ const P = {
   accountExport: 'merchant:content:account:export',
   accountCreate: 'merchant:content:account:create',
   accountUpdate: 'merchant:content:account:update',
-  accountDelete: 'merchant:content:account:delete'
+  accountDelete: 'merchant:content:account:delete',
+  bgmView: 'merchant:content:bgm:view',
+  bgmCreate: 'merchant:content:bgm:create',
+  bgmUpdate: 'merchant:content:bgm:update',
+  bgmDelete: 'merchant:content:bgm:delete'
 } as const;
 const loading = ref(false);
 const submitting = ref(false);
@@ -598,8 +795,10 @@ const planColumns: TableColumnData[] = [
   { title: '计划名称', dataIndex: 'name', width: 230 }, { title: '计划类型', slotName: 'type', width: 100 },
   { title: '下发状态', slotName: 'status', width: 110 },
   { title: '创建人', dataIndex: 'owner', width: 100 }, { title: '发布日期', slotName: 'period', width: 150 },
-  { title: '选定账号数', dataIndex: 'accounts', width: 110 }, { title: '任务执行进度', slotName: 'progress', width: 190 },
-  { title: '操作', slotName: 'actions', width: 220, fixed: 'right' }
+  { title: '选定账号数', dataIndex: 'accounts', width: 110 },
+  { title: '执行进度(人员)', slotName: 'personProgress', width: 180 },
+  { title: '执行进度(视频)', slotName: 'videoProgress', width: 180 },
+  { title: '操作', slotName: 'actions', width: 240, fixed: 'right' }
 ];
 
 async function loadPlans() {
@@ -612,12 +811,16 @@ async function loadPlans() {
         ? { label: '待开始', tone: 'draft' as CalendarTone }
         : activityStatusMeta[item.status] || { label: item.status, tone: 'draft' as CalendarTone };
       return {
-        id: item.id, type: item.objective?.includes('原创') ? '原创' : '半原创', name: item.name,
+        id: item.id, type: item.creationMode === 'SELF_CREATED' ? '原创' : '半原创', name: item.name,
         owner: item.ownerName, status: statusMeta.label,
         objective: item.objective, rawStatus: item.status,
         accounts: item.employeeCount, completed: item.completedCount,
         progress: item.employeeCount ? Math.round(item.completedCount / item.employeeCount * 100) : 0,
-        startDate: item.startTime.slice(0, 10), endDate: item.endTime.slice(0, 10), startTime: item.startTime,
+        personProgress: item.employeeCount ? Math.round(item.completedCount / item.employeeCount * 100) : 0,
+        completedVideos: item.completedVideoCount || 0,
+        totalVideos: item.totalVideoCount || 0,
+        videoProgress: item.totalVideoCount ? Math.min(100, Math.round(item.completedVideoCount / item.totalVideoCount * 100)) : 0,
+        startDate: item.releaseStartTime.slice(0, 10), endDate: item.endTime.slice(0, 10), startTime: item.startTime,
         tone: statusMeta.tone
       };
     });
@@ -629,13 +832,13 @@ async function loadPlans() {
 function applyFilters() { Object.assign(appliedFilters, filters); }
 function resetFilters() { Object.assign(filters, { id: '', type: '', keyword: '', status: '', owner: '', dateRange: [] }); Object.assign(appliedFilters, filters); }
 function statusClass(status: string) {
-  return status === '进行中' ? 'status-active' : status === '已终止' ? 'status-terminated' : status === '已完成' ? 'status-done' : 'status-draft';
+  return status === '进行中' ? 'status-active' : status === '已终止' ? 'status-terminated' : status === '已完结' ? 'status-done' : 'status-draft';
 }
 function statusColor(status: string) {
-  return ({ '进行中': 'arcoblue', '已终止': 'red', '已完成': 'green', '已过期': 'gray', '草稿': 'orange' } as Record<string, string>)[status] || 'gray';
+  return ({ '进行中': 'arcoblue', '已暂停': 'orange', '已终止': 'red', '已完结': 'green', '草稿': 'orange' } as Record<string, string>)[status] || 'gray';
 }
 function calendarStatusColor(tone?: string) {
-  return ({ active: 'blue', terminated: 'red', completed: 'green', expired: 'gray', draft: 'orange' } as Record<string, string>)[tone || 'draft'];
+  return ({ active: 'blue', paused: 'orange', terminated: 'red', completed: 'green', expired: 'gray', draft: 'orange' } as Record<string, string>)[tone || 'draft'];
 }
 function csvCell(value: unknown) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`;
@@ -663,25 +866,30 @@ function exportMaterials() { Message.success('素材收集表已生成，正在�
 
 const createVisible = ref(false);
 const editingActivityId = ref<number>();
-watch(
-  activeModule,
-  async (module) => {
-    createVisible.value = false;
-    if (module === 'accounts') await loadAccounts();
-    else if (module === 'analytics') await loadVideoReports();
-    else await loadPlans();
-  },
-  { immediate: true }
-);
 const wizardStep = ref(1);
+type PublishPlatform = '抖音' | '小红书' | '视频号';
+type PlatformQuota = { total: number; daily: number };
+const supportedPublishPlatforms: PublishPlatform[] = ['抖音', '小红书', '视频号'];
+const createPlatformQuotas = (): Record<PublishPlatform, PlatformQuota> => ({
+  抖音: { total: 1, daily: 1 },
+  小红书: { total: 1, daily: 1 },
+  视频号: { total: 1, daily: 1 }
+});
 const planForm = reactive({
-  name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [] as string[], accountMode: '组织',
-  employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '', taskStartTime: '',
+  name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [] as string[], accountMode: '账号',
+  employeeCount: 0, platforms: ['抖音'] as PublishPlatform[], platformQuotas: createPlatformQuotas(), sampleAspect: 'portrait' as 'portrait' | 'landscape',
+  coverExampleUrl: '', coverExampleName: '', coverUploading: false,
+  bgmId: undefined as number | undefined,
+  description: '', taskCopy: '', topic: '', title: '', taskStartTime: '',
   storyboardCount: 3, originalRequirement: ''
 });
 const topicInput = ref('');
 const topicList = ref<string[]>([]);
 const formattedTopics = computed(() => topicList.value.map(topic => `#${topic}#`).join(' '));
+const platformQuotaSummary = computed(() => planForm.platforms.map(platform => {
+  const quota = planForm.platformQuotas[platform];
+  return `${platform} ${quota.total}条（每天可发送${quota.daily}条）`;
+}).join('、'));
 
 function normalizeTopic(value: string) {
   return value.trim().replace(/^#+|#+$/g, '').replace(/\s+/g, '');
@@ -725,7 +933,6 @@ type StoryboardDraft = {
   script: string;
   sampleVideoUrl?: string;
   sampleVideoName?: string;
-  sampleCoverUrl?: string;
   sampleAspect?: 'portrait' | 'landscape' | '';
   uploading?: boolean;
 };
@@ -734,14 +941,26 @@ const emptyStoryboard = (): StoryboardDraft => ({
   script: '',
   sampleVideoUrl: '',
   sampleVideoName: '',
-  sampleCoverUrl: '',
   sampleAspect: 'portrait',
   uploading: false
 });
 const storyboards = ref<StoryboardDraft[]>([emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]);
 const activeStoryboard = ref(0);
 const generating = ref(false);
-function openCreate(date?: string) { editingActivityId.value = undefined; resetPlanForm(); wizardStep.value = 1; if (date) planForm.dateRange = [date, date]; createVisible.value = true; loadEmployees(); }
+const descriptionAiVisible = ref(false);
+const descriptionPrompt = ref('');
+const generatingDescription = ref(false);
+const generatingShootingRequirement = ref(false);
+const planBgmOptions = ref<ContentBgmItem[]>([]);
+const planBgmLoading = ref(false);
+const selectedPlanBgm = computed(() => planBgmOptions.value.find(item => item.id === planForm.bgmId));
+async function loadPlanBgmOptions() {
+  planBgmLoading.value = true;
+  try { planBgmOptions.value = await fetchContentBgms({ enabled: true }); }
+  catch (error) { Message.error(error instanceof Error ? error.message : '可用BGM加载失败'); }
+  finally { planBgmLoading.value = false; }
+}
+function openCreate(date?: string) { editingActivityId.value = undefined; resetPlanForm(); wizardStep.value = 1; if (date) planForm.dateRange = [date, date]; createVisible.value = true; loadEmployees(); void loadPlanBgmOptions(); }
 function leaveCreate() { createVisible.value = false; editingActivityId.value = undefined; wizardStep.value = 1; }
 function forwardWizardWheel(event: WheelEvent) {
   const shell = event.currentTarget as HTMLElement | null;
@@ -749,16 +968,29 @@ function forwardWizardWheel(event: WheelEvent) {
   if (!shell || !content || content.contains(event.target as Node)) return;
   content.scrollTop += event.deltaY;
 }
-function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '组织', employeeCount: 0, platforms: ['抖音'], description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; selectedEmployeeIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
+function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '账号', employeeCount: 0, platforms: ['抖音'] as PublishPlatform[], platformQuotas: createPlatformQuotas(), sampleAspect: 'portrait', coverExampleUrl: '', coverExampleName: '', coverUploading: false, bgmId: undefined, description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; selectedEmployeeIds.value = []; selectedPlanAccountIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
 function instructionValue(lines: string[], label: string) {
   return lines.find(line => line.startsWith(`${label}：`))?.slice(label.length + 1) || '';
+}
+function parsePlatformQuotas(value: string) {
+  const quotas = createPlatformQuotas();
+  value.split('、').filter(Boolean).forEach(item => {
+    const [platform, values] = item.split('=');
+    if (!supportedPublishPlatforms.includes(platform as PublishPlatform)) return;
+    const [total, daily] = (values || '').split('/').map(Number);
+    quotas[platform as PublishPlatform] = {
+      total: Number.isInteger(total) && total > 0 ? total : 1,
+      daily: Number.isInteger(daily) && daily > 0 ? daily : 1
+    };
+  });
+  return quotas;
 }
 async function openEdit(record: PlanRow) {
   editingActivityId.value = Number(record.id);
   resetPlanForm();
   submitting.value = true;
   try {
-    await loadEmployees();
+    await Promise.all([loadEmployees(), loadAccounts(), loadPlanBgmOptions()]);
     const [plans, personnel] = await Promise.all([
       fetchActivityPlans(Number(record.id)),
       fetchContentDeliveryTasks(Number(record.id))
@@ -766,7 +998,10 @@ async function openEdit(record: PlanRow) {
     const plan = plans[0];
     if (!plan) throw new Error('计划内容不存在');
     const lines = plan.taskInstruction.split('\n').filter(Boolean);
-    const platforms = instructionValue(lines, '发布平台').split('、').filter(Boolean);
+    const platforms = instructionValue(lines, '发布平台')
+      .split('、')
+      .filter((platform): platform is PublishPlatform => supportedPublishPlatforms.includes(platform as PublishPlatform));
+    const platformQuotas = parsePlatformQuotas(instructionValue(lines, '平台发布配置'));
     const storyboardText = instructionValue(lines, '分镜要求');
     const parsedStoryboards = storyboardText
       ? storyboardText.split(' | ').map(item => {
@@ -784,7 +1019,6 @@ async function openEdit(record: PlanRow) {
             script: values['台词'] || '',
             sampleVideoUrl: values['样例视频'] || '',
             sampleVideoName: values['样例视频'] ? '已上传样例视频' : '',
-            sampleCoverUrl: values['样例封面'] || '',
             sampleAspect: normalizeSampleAspect(values['样例比例']) || 'portrait'
           };
         })
@@ -794,9 +1028,14 @@ async function openEdit(record: PlanRow) {
       type: plan.creationMode === 'SELF_CREATED' ? '原创' : '半原创',
       dateRange: [record.startDate, record.endDate],
       taskStartTime: record.startTime.replace('T', ' ').slice(0, 19),
-      accountMode: '组织',
+      accountMode: '账号',
       employeeCount: new Set(personnel.map(item => item.employeeId)).size,
       platforms: platforms.length ? platforms : ['抖音'],
+      platformQuotas,
+      sampleAspect: parsedStoryboards[0]?.sampleAspect || 'portrait',
+      coverExampleUrl: instructionValue(lines, '视频封面示例'),
+      coverExampleName: instructionValue(lines, '视频封面示例') ? '已上传视频封面示例' : '',
+      bgmId: Number(instructionValue(lines, '参考BGM ID')) || undefined,
       description: record.objective || '',
       taskCopy: lines[0] || '',
       topic: instructionValue(lines, '发布话题'),
@@ -807,6 +1046,9 @@ async function openEdit(record: PlanRow) {
     topicList.value = parseTopics(planForm.topic);
     syncTopicValue();
     selectedEmployeeIds.value = [...new Set(personnel.map(item => item.employeeId))];
+    selectedPlanAccountIds.value = accounts.value
+      .filter(account => selectedEmployeeIds.value.includes(account.employeeId))
+      .map(account => account.id);
     storyboards.value = parsedStoryboards.length
       ? parsedStoryboards
       : Array.from({ length: Math.max(plan.storyboardCount, 1) }, emptyStoryboard);
@@ -819,20 +1061,81 @@ async function openEdit(record: PlanRow) {
     submitting.value = false;
   }
 }
-function syncStoryboards(value?: number) { const count = value || planForm.storyboardCount; while (storyboards.value.length < count) storyboards.value.push(emptyStoryboard()); storyboards.value = storyboards.value.slice(0, count); if (activeStoryboard.value >= count) activeStoryboard.value = count - 1; }
+function syncStoryboards(value?: number) { const count = value || planForm.storyboardCount; while (storyboards.value.length < count) storyboards.value.push({ ...emptyStoryboard(), sampleAspect: planForm.sampleAspect }); storyboards.value = storyboards.value.slice(0, count); if (activeStoryboard.value >= count) activeStoryboard.value = count - 1; }
+function handleStoryboardAspectChange(value: string | number | boolean) {
+  if (value !== 'portrait' && value !== 'landscape') return;
+  let cleared = false;
+  storyboards.value.forEach(storyboard => {
+    if (storyboard.sampleVideoUrl && storyboard.sampleAspect !== value) {
+      storyboard.sampleVideoUrl = '';
+      storyboard.sampleVideoName = '';
+      cleared = true;
+    }
+    storyboard.sampleAspect = value;
+  });
+  if (cleared) Message.warning('画面方向已变更，不符合新方向的样例视频已清除，请重新上传');
+  if (planForm.coverExampleUrl) {
+    planForm.coverExampleUrl = '';
+    planForm.coverExampleName = '';
+    Message.warning('画面方向已变更，视频封面示例已清除，请重新上传');
+  }
+}
+function openDescriptionGenerator() {
+  descriptionPrompt.value = planForm.description;
+  descriptionAiVisible.value = true;
+}
+async function generateVideoDescription(): Promise<boolean> {
+  const prompt = descriptionPrompt.value.trim();
+  if (!prompt || generatingDescription.value) return false;
+  generatingDescription.value = true;
+  try {
+    const result = await generateContentVideoDescription(prompt);
+    planForm.description = result.text;
+    Message.success('视频内容描述已生成并填入，可继续修改');
+    return true;
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '视频内容描述生成失败');
+    return false;
+  } finally {
+    generatingDescription.value = false;
+  }
+}
 async function generateScripts() {
-  if (!planForm.description) { Message.warning('请先填写活动文案'); return; }
+  if (!planForm.description) { Message.warning('请先填写视频内容描述'); return; }
+  if (generating.value) return;
   generating.value = true;
-  await new Promise(resolve => setTimeout(resolve, 650));
-  const scripts = ['今天给大家推荐一款夏日必备好物，清爽体验从第一眼就开始。', '近距离展示产品细节和核心卖点，真实分享使用感受。', '现在到店即可参与活动，带上话题发布你的专属体验。'];
-  storyboards.value.forEach((item, index) => { item.script = scripts[index % scripts.length]; item.requirement ||= ['正面半身出镜，环境明亮，产品置于画面中央', '切换近景，缓慢展示包装和使用过程', '回到人物正面，口播活动信息并自然收尾'][index % 3]; });
-  generating.value = false; Message.success('分镜脚本已生成，可继续修改');
+  try {
+    syncStoryboards(planForm.storyboardCount);
+    const result = await generateContentStoryboardScripts(planForm.description, storyboards.value.length);
+    storyboards.value.forEach((item, index) => { item.script = result.scripts[index] || ''; });
+    Message.success('全部分镜台词已生成，可继续修改');
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '分镜台词生成失败');
+  } finally {
+    generating.value = false;
+  }
+}
+async function generateShootingRequirement() {
+  const description = planForm.description.trim();
+  if (!description) { Message.warning('请先填写视频内容描述'); return; }
+  if (generatingShootingRequirement.value) return;
+  generatingShootingRequirement.value = true;
+  try {
+    const result = await generateContentShootingRequirement(description);
+    planForm.originalRequirement = result.text;
+    Message.success('原创拍摄要求已生成并填入，可继续修改');
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '原创拍摄要求生成失败');
+  } finally {
+    generatingShootingRequirement.value = false;
+  }
 }
 function estimateDuration(script: string) { return Math.max(0, Math.ceil(script.length / 4)); }
 function minimumReleaseTime() {
-  return Date.now() + 5 * 24 * 60 * 60 * 1000;
+  return Date.now() + 3 * 24 * 60 * 60 * 1000;
 }
 function disabledReleaseDate(date: Date) {
+  if (editingActivityId.value) return false;
   return date.getTime() <= minimumReleaseTime();
 }
 function taskStartBounds() {
@@ -840,9 +1143,9 @@ function taskStartBounds() {
   const publishStart = planForm.dateRange[0]
     ? new Date(`${planForm.dateRange[0]}T00:00:00`)
     : now;
-  const min = publishStart.getTime() > now.getTime() ? publishStart : now;
-  const max = planForm.dateRange[1]
-    ? new Date(`${planForm.dateRange[1]}T23:59:59`)
+  const min = now;
+  const max = planForm.dateRange[0]
+    ? new Date(publishStart.getTime() - 1)
     : undefined;
   return { min, max };
 }
@@ -852,6 +1155,7 @@ function sameLocalDate(left: Date, right: Date) {
     && left.getDate() === right.getDate();
 }
 function disabledTaskStartDate(date?: Date) {
+  if (editingActivityId.value) return false;
   if (!date) return false;
   const { min, max } = taskStartBounds();
   const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
@@ -860,6 +1164,7 @@ function disabledTaskStartDate(date?: Date) {
   return dayStart < minDay || (maxDay !== undefined && dayStart > maxDay);
 }
 function disabledTaskStartTime(date?: Date) {
+  if (editingActivityId.value) return {};
   if (!date) return {};
   const { min } = taskStartBounds();
   if (!sameLocalDate(date, min)) return {};
@@ -877,6 +1182,7 @@ function disabledTaskStartTime(date?: Date) {
 }
 function taskStartIsValid() {
   if (!planForm.taskStartTime) return false;
+  if (editingActivityId.value) return true;
   const value = new Date(planForm.taskStartTime.replace(' ', 'T'));
   const { min, max } = taskStartBounds();
   return !Number.isNaN(value.getTime())
@@ -886,26 +1192,38 @@ function taskStartIsValid() {
 function validateTaskStartTime() {
   if (!planForm.taskStartTime || taskStartIsValid()) return;
   planForm.taskStartTime = '';
-  Message.warning('任务开始时间不能早于当前时间，且必须在发布日期范围内');
+  Message.warning('任务开始时间只能选择当前时间到发布日前一天');
 }
 function releaseDateIsValid() {
   if (planForm.dateRange.length !== 2) return false;
+  if (editingActivityId.value) return true;
   return new Date(`${planForm.dateRange[0]}T00:00:00`).getTime() > minimumReleaseTime();
 }
 function validateReleaseDateSelection() {
   if (!planForm.dateRange.length) return;
+  if (editingActivityId.value) return;
   if (!releaseDateIsValid()) {
     planForm.dateRange = [];
     planForm.taskStartTime = '';
-    Message.warning('为确保流程正常进行，发布日期必须大于当前时间5天');
+    Message.warning('为确保流程正常进行，发布日期必须大于当前时间3天');
     return;
   }
-  if (!planForm.taskStartTime) planForm.taskStartTime = `${planForm.dateRange[0]} 09:00:00`;
+  if (!planForm.taskStartTime) {
+    const defaultStart = new Date(Date.now() + 60 * 60 * 1000);
+    planForm.taskStartTime = formatLocalDateTime(defaultStart);
+  }
 }
-async function uploadStoryboardSample(index: number, files: any[]) {
+function formatLocalDateTime(value: Date) {
+  const part = (number: number) => String(number).padStart(2, '0');
+  return `${value.getFullYear()}-${part(value.getMonth() + 1)}-${part(value.getDate())} ${part(value.getHours())}:${part(value.getMinutes())}:${part(value.getSeconds())}`;
+}
+async function uploadStoryboardSample(index: number, files: UploadFileEntry[], fileItem?: UploadFileEntry) {
   const storyboard = storyboards.value[index];
-  const file = files?.[0]?.file || files?.[0]?.originFile || files?.[0];
-  if (!storyboard || !(file instanceof File)) return;
+  const file = getUploadFile(fileItem, files);
+  if (!storyboard || !file) {
+    Message.warning('未能读取所选视频，请重新选择文件');
+    return;
+  }
   if (file.type !== 'video/mp4' && !file.name.toLowerCase().endsWith('.mp4')) {
     Message.warning('样例视频仅支持 MP4 格式');
     return;
@@ -917,8 +1235,8 @@ async function uploadStoryboardSample(index: number, files: any[]) {
   storyboard.uploading = true;
   try {
     const aspect = await readVideoAspect(file);
-    if (storyboard.sampleAspect && storyboard.sampleAspect !== aspect) {
-      Message.warning(`当前选择${sampleAspectText(storyboard.sampleAspect)}，请上传对应比例的视频`);
+    if (planForm.sampleAspect !== aspect) {
+      Message.warning(`当前统一设置为${sampleAspectText(planForm.sampleAspect)}，请上传对应比例的视频`);
       return;
     }
     const result = await uploadContentSampleVideo(file);
@@ -931,6 +1249,38 @@ async function uploadStoryboardSample(index: number, files: any[]) {
   } finally {
     storyboard.uploading = false;
   }
+}
+async function uploadCoverExample(files: UploadFileEntry[], fileItem?: UploadFileEntry) {
+  const file = getUploadFile(fileItem, files);
+  if (!file) { Message.warning('未能读取所选图片，请重新选择文件'); return; }
+  if (!/\.(jpe?g|png|webp)$/i.test(file.name)) { Message.warning('封面示例仅支持 JPG、PNG、WEBP 格式'); return; }
+  if (file.size > 10 * 1024 * 1024) { Message.warning('封面示例不能超过 10MB'); return; }
+  planForm.coverUploading = true;
+  try {
+    const aspect = await readImageAspect(file);
+    if (planForm.sampleAspect !== aspect) {
+      Message.warning(`当前统一设置为${sampleAspectText(planForm.sampleAspect)}，请上传对应比例的封面图片`);
+      return;
+    }
+    const result = await uploadContentSampleCover(file);
+    planForm.coverExampleUrl = result.url;
+    planForm.coverExampleName = result.originalName || file.name;
+    Message.success('视频封面模板示例上传成功，员工 App 将同步展示');
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '视频封面示例上传失败');
+  } finally {
+    planForm.coverUploading = false;
+  }
+}
+function readImageAspect(file: File): Promise<'portrait' | 'landscape'> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    const finish = (aspect: 'portrait' | 'landscape') => { URL.revokeObjectURL(url); resolve(aspect); };
+    image.onload = () => finish(image.naturalWidth > image.naturalHeight ? 'landscape' : 'portrait');
+    image.onerror = () => finish('portrait');
+    image.src = url;
+  });
 }
 function readVideoAspect(file: File): Promise<'portrait' | 'landscape'> {
   return new Promise(resolve => {
@@ -959,25 +1309,45 @@ function normalizeSampleAspect(value?: string): 'portrait' | 'landscape' | '' {
 function sampleAspectText(value?: string) {
   return value === 'landscape' ? '横版 16:9' : '竖版 9:16';
 }
+function storyboardValidationMessage() {
+  const index = storyboards.value.findIndex(item => !item.requirement || !item.script || !item.sampleVideoUrl);
+  if (index < 0) return '';
+  const storyboard = storyboards.value[index];
+  const missing = [
+    !storyboard.requirement && '拍摄要求',
+    !storyboard.script && '分镜台词',
+    !storyboard.sampleVideoUrl && '样例视频'
+  ].filter(Boolean).join('、');
+  return `请完善分镜 ${index + 1} 的${missing}`;
+}
 function nextWizardStep() {
   if (wizardStep.value === 1 && !planForm.name) {
     Message.warning('请填写计划名称');
     return;
   }
+  if (wizardStep.value === 1 && planForm.name.length > 30) {
+    Message.warning('计划名称不能超过30字');
+    return;
+  }
   if (wizardStep.value === 2) {
     if (!planForm.dateRange.length || !releaseDateIsValid() || !taskStartIsValid() || !planForm.platforms.length) {
-      Message.warning('请完善发布日期、任务开始时间和发布平台，且发布日期必须大于当前时间5天');
+      Message.warning('请完善发布日期、任务开始时间和发布平台，且发布日期必须大于当前时间3天');
+      return;
+    }
+    if (!platformQuotasAreValid()) {
+      Message.warning('请填写每个平台的发布总条数和每天可发送条数，且均需大于0');
       return;
     }
     syncStoryboards(planForm.storyboardCount);
   }
   if (wizardStep.value === 3) {
     if (!planForm.description) {
-      Message.warning('请填写活动文案');
+      Message.warning('请填写视频内容描述');
       return;
     }
-    if (planForm.type === '半原创' && storyboards.value.some(item => !item.requirement || !item.script || !item.sampleAspect || !item.sampleVideoUrl)) {
-      Message.warning('请完善每个分镜的拍摄要求、台词、画面方向并上传对应样例视频');
+    const storyboardError = planForm.type === '半原创' ? storyboardValidationMessage() : '';
+    if (storyboardError) {
+      Message.warning(storyboardError);
       return;
     }
     if (planForm.type === '原创' && !planForm.originalRequirement) {
@@ -989,62 +1359,87 @@ function nextWizardStep() {
 }
 function validatePlan() {
   if (!planForm.name || !planForm.dateRange.length || !releaseDateIsValid() || !taskStartIsValid() || !planForm.description || !planForm.platforms.length) {
-    Message.warning('请完善活动信息，且发布日期必须大于当前时间5天');
+    Message.warning('请完善活动信息，且发布日期必须大于当前时间3天');
     return false;
   }
-  if (!selectedEmployeeIds.value.length) { Message.warning('请至少选择一名员工'); return false; }
-  if (planForm.type === '半原创' && storyboards.value.some(item => !item.requirement || !item.script || !item.sampleAspect || !item.sampleVideoUrl)) { Message.warning('请完善每个分镜的拍摄要求、台词、画面方向并上传对应样例视频'); return false; }
+  if (!platformQuotasAreValid()) { Message.warning('请完善每个平台的视频条数配置'); return false; }
+  if (!selectedEmployeeIds.value.length) { Message.warning(planForm.accountMode === '账号' ? '请至少选择一个发布账号' : '请至少选择一名员工'); return false; }
+  const storyboardError = planForm.type === '半原创' ? storyboardValidationMessage() : '';
+  if (storyboardError) { Message.warning(storyboardError); return false; }
   return true;
 }
 function toLocalDateTime(date: string, end = false) { return `${date}T${end ? '23:59:59' : '00:00:00'}`; }
+function platformQuotasAreValid() {
+  return planForm.platforms.length > 0 && planForm.platforms.every(platform => {
+    const quota = planForm.platformQuotas[platform];
+    return Number.isInteger(quota.total) && quota.total > 0 && Number.isInteger(quota.daily) && quota.daily > 0;
+  });
+}
 function buildTaskInstruction() {
   return [
     planForm.description,
     planForm.topic && `发布话题：${planForm.topic}`,
     `发布平台：${planForm.platforms.join('、')}`,
+    `平台发布配置：${planForm.platforms.map(platform => {
+      const quota = planForm.platformQuotas[platform];
+      return `${platform}=${quota.total}/${quota.daily}`;
+    }).join('、')}`,
+    planForm.type === '半原创' && planForm.coverExampleUrl && `视频封面示例：${planForm.coverExampleUrl}`,
+    planForm.type === '半原创' && planForm.coverExampleUrl && `视频封面比例：${sampleAspectText(planForm.sampleAspect)}`,
+    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM ID：${selectedPlanBgm.value.id}`,
+    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM名称：${selectedPlanBgm.value.bgmName}`,
+    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM地址：${selectedPlanBgm.value.fileUrl}`,
+    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM分类：${selectedPlanBgm.value.videoType} / ${selectedPlanBgm.value.mood}`,
     planForm.type === '原创'
       ? `拍摄要求：${planForm.originalRequirement}`
       : `分镜要求：${storyboards.value.map((item, index) => [
         `${index + 1}.${item.requirement}`,
         `台词：${item.script}`,
         item.sampleVideoUrl && `样例视频：${item.sampleVideoUrl}`,
-        item.sampleAspect && `样例比例：${sampleAspectText(item.sampleAspect)}`,
-        item.sampleCoverUrl && `样例封面：${item.sampleCoverUrl}`
+        `样例比例：${sampleAspectText(planForm.sampleAspect)}`
       ].filter(Boolean).join('；')).join(' | ')}`
   ].filter(Boolean).join('\n').slice(0, 1000);
 }
-async function persistPlan(publish: boolean) {
+async function persistPlan(publish: boolean, commitEdit = false) {
   const [startDate, endDate] = planForm.dateRange;
   const taskInstruction = buildTaskInstruction();
   if (editingActivityId.value) {
+    if (!commitEdit || wizardStep.value !== 4) {
+      throw new Error('编辑内容尚未到最终确认步骤，不能更新计划');
+    }
     await updateContentActivity(editingActivityId.value, {
       name: planForm.name,
       objective: planForm.description,
       startTime: planForm.taskStartTime.replace(' ', 'T'),
+      releaseStartTime: toLocalDateTime(startDate),
       endTime: toLocalDateTime(endDate, true),
       taskInstruction,
       creationMode: planForm.type === '原创' ? 'SELF_CREATED' : 'AI_ASSISTED',
       storyboardCount: planForm.type === '原创' ? 1 : planForm.storyboardCount,
       trainingPolicy: 'NONE',
+      platforms: planForm.platforms,
       employeeIds: selectedEmployeeIds.value
     });
     return;
   }
   const activityId = await createContentActivity({
-    name: planForm.name, objective: planForm.description,
-    startTime: planForm.taskStartTime.replace(' ', 'T'), endTime: toLocalDateTime(endDate, true)
+    name: planForm.name,
+    objective: planForm.description,
+    startTime: planForm.taskStartTime.replace(' ', 'T'),
+    releaseStartTime: toLocalDateTime(startDate),
+    endTime: toLocalDateTime(endDate, true)
   });
   const planId = await createContentPlan({
     activityId, name: planForm.name, taskInstruction,
     creationMode: planForm.type === '原创' ? 'SELF_CREATED' : 'AI_ASSISTED',
     storyboardCount: planForm.type === '原创' ? 1 : planForm.storyboardCount,
-    trainingPolicy: 'NONE', deadline: toLocalDateTime(endDate, true)
+    trainingPolicy: 'NONE', platforms: planForm.platforms, deadline: toLocalDateTime(endDate, true)
   });
   if (publish) await publishContentPlan(planId, selectedEmployeeIds.value, `content-plan-${planId}-${Date.now()}`);
 }
 async function saveDraft() {
-  if (!planForm.name || planForm.dateRange.length !== 2 || !releaseDateIsValid() || !taskStartIsValid() || !planForm.description) {
-    Message.warning('请填写计划名称、活动文案，并选择大于当前时间5天的发布日期');
+  if (!planForm.name || planForm.name.length > 30 || planForm.dateRange.length !== 2 || !releaseDateIsValid() || !taskStartIsValid() || !planForm.description || !platformQuotasAreValid()) {
+    Message.warning('请填写计划名称、视频内容描述、平台视频条数，并选择大于当前时间3天的发布日期');
     return;
   }
   submitting.value = true;
@@ -1056,7 +1451,7 @@ async function submitPlan() {
   if (!validatePlan() || submitting.value) return;
   submitting.value = true;
   try {
-    await persistPlan(true);
+    await persistPlan(true, Boolean(editingActivityId.value));
     Message.success(editingActivityId.value ? '计划修改成功' : `计划已提交，已创建 ${selectedEmployeeIds.value.length} 条员工任务`);
     createVisible.value = false;
     editingActivityId.value = undefined;
@@ -1121,18 +1516,42 @@ async function viewDelivery(record: PlanRow) {
     deliveryLoading.value = false;
   }
 }
-function cancelPlan(record: PlanRow) {
+function pausePlan(record: PlanRow) {
   Modal.warning({
-    title: '取消发布计划',
-    content: `取消后，计划“${record.name}”及未完成的员工任务将停止执行，是否继续？`,
+    title: '暂停发布计划',
+    content: `暂停后计划“${record.name}”将停止继续执行，是否继续？`,
+    hideCancel: false,
+    onOk: async () => {
+      await pauseContentActivity(Number(record.id));
+      Message.success('发布计划已暂停');
+      await loadPlans();
+    }
+  });
+}
+function resumePlan(record: PlanRow) {
+  Modal.confirm({
+    title: '恢复发布计划',
+    content: `恢复后计划“${record.name}”将继续执行，是否继续？`,
+    hideCancel: false,
+    onOk: async () => {
+      await resumeContentActivity(Number(record.id));
+      Message.success('发布计划已恢复');
+      await loadPlans();
+    }
+  });
+}
+function terminatePlan(record: PlanRow) {
+  Modal.warning({
+    title: '终止发布计划',
+    content: `终止后，计划“${record.name}”及未完成的员工任务将停止执行且无法恢复，是否继续？`,
     hideCancel: false,
     onOk: async () => {
       try {
         await terminateContentActivity(Number(record.id));
         await loadPlans();
-        Message.success('计划已取消');
+        Message.success('计划已终止');
       } catch (error) {
-        Message.error(error instanceof Error ? error.message : '计划取消失败');
+        Message.error(error instanceof Error ? error.message : '计划终止失败');
         throw error;
       }
     }
@@ -1172,7 +1591,7 @@ const calendarCells = computed(() => {
     const day = date.getDate();
     const iso = toLocalIsoDate(date);
     const tasks = current
-      ? allPlans.value.filter(plan => plan.startDate <= iso && plan.endDate >= iso)
+      ? allPlans.value.filter(plan => plan.rawStatus !== 'TERMINATED' && plan.startDate <= iso && plan.endDate >= iso)
       : [];
     return { key: iso, day, date: iso, current, today: iso === toLocalIsoDate(new Date()), tasks };
   });
@@ -1230,6 +1649,93 @@ async function loadVideoReports() {
 function resetAnalytics() { analyticsFilters.id = ''; analyticsFilters.dateRange = []; }
 
 const accountPlatform = ref('全平台');
+const bgmVideoTypes = ['产品种草', '门店探店', '品牌故事', '教程知识', '活动促销', '节日热点', '员工团队', '生活方式'];
+const bgmMoods = ['轻松愉悦', '温暖治愈', '活力明快', '振奋激昂', '专业沉稳', '时尚酷感', '浪漫柔和', '悬念紧张'];
+const bgmEnergyLevels = ['舒缓', '适中', '强节奏'];
+const bgmVocalTypes = ['纯音乐', '女声', '男声', '混合人声'];
+const bgmCopyrightStatuses = ['自有版权', '已获商用授权', '免版税/可商用', '版权待确认'];
+const bgmFilters = reactive<{ keyword: string; videoType: string; mood: string; enabled?: boolean }>({ keyword: '', videoType: '', mood: '', enabled: undefined });
+const bgms = ref<ContentBgmItem[]>([]);
+const bgmLoading = ref(false);
+const bgmEditorVisible = ref(false);
+const bgmEditingId = ref<number>();
+const bgmSaving = ref(false);
+const bgmUploading = ref(false);
+const bgmFormRef = ref<FormInstance>();
+const emptyBgmForm = (): ContentBgmPayload => ({
+  bgmName: '', fileUrl: '', originalFileName: '', videoType: '', mood: '', energyLevel: '适中',
+  vocalType: '纯音乐', bpm: undefined, durationSeconds: undefined, copyrightStatus: '版权待确认',
+  copyrightNote: '', enabled: true
+});
+const bgmForm = reactive<ContentBgmPayload>(emptyBgmForm());
+const bgmColumns: TableColumnData[] = [
+  { title: 'BGM名称 / 试听', slotName: 'audio', width: 300 },
+  { title: '分类标签', slotName: 'classification', width: 280 },
+  { title: '人声', dataIndex: 'vocalType', width: 100 },
+  { title: 'BPM', dataIndex: 'bpm', width: 80 },
+  { title: '时长', slotName: 'duration', width: 90 },
+  { title: '版权信息', slotName: 'copyright', width: 260 },
+  { title: '状态', slotName: 'enabled', width: 90 },
+  { title: '更新时间', dataIndex: 'updateTime', width: 180 },
+  { title: '操作', slotName: 'actions', width: 120, fixed: 'right' }
+];
+async function loadBgms() {
+  bgmLoading.value = true;
+  try { bgms.value = await fetchContentBgms({ ...bgmFilters }); }
+  catch (error) { Message.error(error instanceof Error ? error.message : 'BGM加载失败'); }
+  finally { bgmLoading.value = false; }
+}
+function resetBgmFilters() {
+  Object.assign(bgmFilters, { keyword: '', videoType: '', mood: '', enabled: undefined });
+  void loadBgms();
+}
+function openBgmEditor(record?: ContentBgmItem) {
+  bgmEditingId.value = record?.id;
+  Object.assign(bgmForm, record ? {
+    bgmName: record.bgmName, fileUrl: record.fileUrl, originalFileName: record.originalFileName,
+    videoType: record.videoType, mood: record.mood, energyLevel: record.energyLevel,
+    vocalType: record.vocalType, bpm: record.bpm, durationSeconds: record.durationSeconds,
+    copyrightStatus: record.copyrightStatus, copyrightNote: record.copyrightNote || '', enabled: record.enabled
+  } : emptyBgmForm());
+  bgmEditorVisible.value = true;
+}
+async function handleBgmFile(...args: unknown[]) {
+  const file = getUploadFile(...args);
+  if (!file) return;
+  bgmUploading.value = true;
+  try {
+    const uploaded = await uploadContentBgm(file);
+    bgmForm.fileUrl = uploaded.url;
+    bgmForm.originalFileName = uploaded.originalName;
+    if (!bgmForm.bgmName) bgmForm.bgmName = uploaded.originalName.replace(/\.[^.]+$/, '');
+    Message.success('音频上传成功');
+  } catch (error) { Message.error(error instanceof Error ? error.message : '音频上传失败'); }
+  finally { bgmUploading.value = false; }
+}
+async function saveBgm() {
+  const validation = await bgmFormRef.value?.validate();
+  if (validation) return;
+  if (!bgmForm.fileUrl) { Message.warning('请先上传音频文件'); return; }
+  bgmSaving.value = true;
+  try {
+    if (bgmEditingId.value) await updateContentBgm(bgmEditingId.value, { ...bgmForm });
+    else await createContentBgm({ ...bgmForm });
+    Message.success(bgmEditingId.value ? 'BGM已更新' : 'BGM已添加');
+    bgmEditorVisible.value = false;
+    await loadBgms();
+  } catch (error) { Message.error(error instanceof Error ? error.message : 'BGM保存失败'); }
+  finally { bgmSaving.value = false; }
+}
+function removeBgm(record: ContentBgmItem) {
+  Modal.warning({ title: '删除BGM', content: `确定删除“${record.bgmName}”吗？删除后列表不再显示。`, hideCancel: false, onOk: async () => {
+    await deleteContentBgm(record.id); Message.success('BGM已删除'); await loadBgms();
+  } });
+}
+function formatBgmDuration(seconds?: number) {
+  if (!seconds) return '-';
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 const accountFilters = reactive({ keyword: '', type: '', status: '', employee: '' });
 type AccountRow = {
   id: number; index: number; platform: string; platformShort: string; platformClass: string;
@@ -1243,9 +1749,21 @@ const accountColumns: TableColumnData[] = [
   { title: '归属员工', dataIndex: 'employee' }, { title: '更新时间', dataIndex: 'updated', width: 170 },
   { title: '账号状态', slotName: 'status' }, { title: '操作', slotName: 'actions', fixed: 'right' }
 ];
+const planAccountColumns: TableColumnData[] = [
+  { title: '发布平台', dataIndex: 'platform', width: 110 },
+  { title: '账号名称', dataIndex: 'name', width: 180 },
+  { title: '平台账号ID', dataIndex: 'accountId', width: 180 },
+  { title: '账号类型', dataIndex: 'type', width: 100 },
+  { title: '归属组织', dataIndex: 'org', width: 180 },
+  { title: '归属员工', dataIndex: 'employee', width: 160 },
+  { title: '账号状态', slotName: 'status', width: 110 }
+];
 const accounts = ref<AccountRow[]>([]);
 const accountsLoading = ref(false);
 const selectedAccountIds = ref<number[]>([]);
+const planAccountVisible = ref(false);
+const planAccountKeyword = ref('');
+const selectedPlanAccountIds = ref<number[]>([]);
 const accountStatusLabel: Record<string, string> = {
   ACTIVE: '正常', PENDING: '待校验', FAILED: '校验失败', AUTH_EXPIRED: '授权失效', DISABLED: '停用'
 };
@@ -1281,6 +1799,24 @@ const filteredAccounts = computed(() => accounts.value.filter(item =>
   (!accountFilters.status || item.status === accountFilters.status) &&
   (!accountFilters.employee || item.employee.includes(accountFilters.employee))
 ));
+const selectablePlanAccounts = computed(() => {
+  const keyword = planAccountKeyword.value.trim().toLowerCase();
+  if (!keyword) return accounts.value;
+  return accounts.value.filter(account =>
+    `${account.name} ${account.accountId} ${account.employee}`.toLowerCase().includes(keyword)
+  );
+});
+async function openPlanAccountSelector() {
+  planAccountKeyword.value = '';
+  planAccountVisible.value = true;
+  await loadAccounts();
+}
+function confirmPlanAccounts() {
+  const selectedAccounts = accounts.value.filter(account => selectedPlanAccountIds.value.includes(account.id));
+  selectedEmployeeIds.value = [...new Set(selectedAccounts.map(account => account.employeeId))];
+  planForm.employeeCount = selectedEmployeeIds.value.length;
+  planAccountVisible.value = false;
+}
 function resetAccounts() { Object.assign(accountFilters, { keyword: '', type: '', status: '', employee: '' }); }
 function downloadCsv(filename: string, rows: unknown[][]) {
   const csv = `\uFEFF${rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n')}`;
@@ -1296,7 +1832,7 @@ function exportAccounts() {
 const accountEditorVisible = ref(false);
 const accountEditingId = ref<number>();
 const accountReadonly = ref(false);
-const accountFormRef = ref<any>();
+const accountFormRef = ref<FormInstance>();
 const accountRules = {
   platform: [{ required: true, message: '请选择发布平台' }],
   accountType: [{ required: true, message: '请选择账号类型' }],
@@ -1369,7 +1905,7 @@ const accountImporting = ref(false);
 const importFile = ref<File>();
 async function openImport() { await loadEmployees('account'); importFile.value = undefined; importVisible.value = true; }
 function downloadAccountTemplate() { downloadCsv('账号导入模板.csv', [['平台', '账号名称', '平台账号ID', '账号类型', '员工工号'], ['抖音', '示例账号', 'DY000001', '职人', '100001']]); }
-function handleImportFile(files: any[]) { importFile.value = files?.[0]?.file || files?.[0]?.originFile || files?.[0]; }
+function handleImportFile(files: UploadFileEntry[]) { importFile.value = getUploadFile(files); }
 async function finishImport() {
   if (!importFile.value) { Message.warning('请选择CSV文件'); return; }
   accountImporting.value = true;
@@ -1560,8 +2096,8 @@ function openPersonnelImport() {
   personnelImportRows.value = [];
   personnelImportVisible.value = true;
 }
-function handlePersonnelFile(files: any[]) {
-  personnelImportFile.value = files?.[0]?.file || files?.[0]?.originFile || files?.[0];
+function handlePersonnelFile(files: UploadFileEntry[]) {
+  personnelImportFile.value = getUploadFile(files);
   personnelImportRows.value = [];
 }
 async function downloadPersonnelTemplate() {
@@ -1600,12 +2136,24 @@ function applyImportedPersonnel() {
   Message.success(`已添加 ${validPersonnelRows.value.length} 名校验通过人员`);
 }
 function confirmEmployees() { planForm.employeeCount = selectedEmployeeIds.value.length; employeeVisible.value = false; }
+
+watch(
+  activeModule,
+  async (module) => {
+    createVisible.value = false;
+    if (module === 'accounts') await loadAccounts();
+    else if (module === 'bgm') await loadBgms();
+    else if (module === 'analytics') await loadVideoReports();
+    else await loadPlans();
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>
-.video-center { min-width:1080px; padding:16px 20px 24px; box-sizing:border-box; color:var(--tql-text-primary, #1d2129); }
+.video-center { min-width:1080px; padding:16px 20px 24px; box-sizing:border-box; color:var(--tql-text-primary, var(--tql-text-primary)); }
 .module-content { display:grid; min-width:0; gap:16px; }
-.search-panel, .data-panel, .calendar-panel, .trend-panel { width:100%; min-width:0; box-sizing:border-box; overflow:hidden; border:1px solid #e5e6eb; border-radius:8px; box-shadow:none; }
+.search-panel, .data-panel, .calendar-panel, .trend-panel { width:100%; min-width:0; box-sizing:border-box; overflow:hidden; border:1px solid var(--tql-border); border-radius:8px; box-shadow:none; }
 .search-panel :deep(.arco-card-body) { display:flex; align-items:flex-start; gap:20px; padding:20px 24px; }
 .search-panel form { display:grid; min-width:0; width:0; grid-template-columns:repeat(3, minmax(220px, 1fr)); gap:16px 24px; flex:1; }
 .search-panel.compact form { display:flex; }
@@ -1634,95 +2182,141 @@ function confirmEmployees() { planForm.employeeCount = selectedEmployeeIds.value
   max-width:390px;
 }
 .search-panel .plan-search-form :deep(.plan-query-control) {
-  flex:0 0 230px !important;
-  width:230px !important;
-  min-width:230px !important;
-  max-width:230px !important;
+  flex:0 0 230px;
+  width:230px;
+  min-width:230px;
+  max-width:230px;
 }
 .search-panel .plan-search-form :deep(.plan-date-item .arco-picker) { width:320px; }
 .search-panel > :deep(.arco-card-body) > .search-actions {
   align-self:stretch;
   margin-left:auto;
 }
-.search-actions { display:flex; flex:0 0 auto; gap:8px; padding-left:16px; border-left:1px solid #e5e6eb; }
+.search-actions { display:flex; flex:0 0 auto; gap:8px; padding-left:16px; border-left:1px solid var(--tql-border); }
 .panel-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
 .panel-toolbar > div { display:flex; align-items:center; gap:10px; }
 .panel-toolbar strong { font-size:16px; }
-.panel-toolbar span { color:#86909c; font-size:12px; }
+.panel-toolbar span { color:var(--tql-text-tertiary); font-size:12px; }
 .status-dot { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
 .status-dot::before { width:7px; height:7px; border-radius:50%; content:""; }
-.status-active::before { background:#00b42a; box-shadow:0 0 0 3px #e8ffea; }
-.status-draft::before { background:#ff7d00; box-shadow:0 0 0 3px #fff7e8; }
-.status-terminated::before { background:#f53f3f; box-shadow:0 0 0 3px #ffece8; }
-.status-done::before { background:#86909c; box-shadow:0 0 0 3px #f2f3f5; }
+.status-active::before { background:var(--tql-success); box-shadow:0 0 0 3px var(--tql-success-soft); }
+.status-draft::before { background:var(--tql-warning); box-shadow:0 0 0 3px var(--tql-warning-soft); }
+.status-terminated::before { background:var(--tql-danger); box-shadow:0 0 0 3px var(--tql-border-danger-soft); }
+.status-done::before { background:var(--tql-text-tertiary); box-shadow:0 0 0 3px var(--tql-bg-hover); }
 .progress-cell { display:flex; align-items:center; gap:10px; }
 .progress-cell :deep(.arco-progress) { width:105px; }
-.progress-cell span { color:#4e5969; font-size:12px; }
-small { color:#86909c; }
+.progress-cell span { color:var(--tql-text-secondary); font-size:12px; }
+small { color:var(--tql-text-tertiary); }
 .empty-state { display:flex; min-height:320px; flex-direction:column; align-items:center; justify-content:center; }
-.empty-illustration { display:grid; width:62px; height:62px; place-items:center; margin-bottom:14px; color:#165dff; background:#e8f3ff; border-radius:50%; font-size:28px; }
-.empty-state strong { font-size:16px; }.empty-state span { margin:8px 0 18px; color:#86909c; }
+.empty-illustration { display:grid; width:62px; height:62px; place-items:center; margin-bottom:14px; color:var(--tql-primary); background:var(--tql-primary-soft); border-radius:50%; font-size:28px; }
+.empty-state strong { font-size:16px; }.empty-state span { margin:8px 0 18px; color:var(--tql-text-tertiary); }
 .calendar-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
 .month-switch, .legend { display:flex; align-items:center; gap:12px; }.month-switch strong { min-width:120px; text-align:center; font-size:18px; }
-.legend span { display:flex; align-items:center; gap:6px; color:#4e5969; font-size:12px; }.legend i { width:9px; height:9px; border-radius:50%; }
-.legend-create { border:1px dashed #165dff; }.legend-draft { background:#ff7d00; }.legend-active { background:#165dff; }.legend-terminated { background:#f53f3f; }.legend-completed { background:#00b42a; }.legend-expired { background:#c9cdd4; }
+.legend span { display:flex; align-items:center; gap:6px; color:var(--tql-text-secondary); font-size:12px; }.legend i { width:9px; height:9px; border-radius:50%; }
+.legend-create { border:1px dashed var(--tql-primary); }.legend-draft { background:var(--tql-warning); }.legend-active { background:var(--tql-primary); }.legend-terminated { background:var(--tql-danger); }.legend-completed { background:var(--tql-success); }.legend-expired { background:var(--tql-text-disabled); }
 .weekday-row, .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); }
-.weekday-row { padding:10px 0; color:#86909c; background:#f7f8fa; text-align:center; font-size:12px; }
-.calendar-day { min-height:145px; padding:12px; border-right:1px solid #e5e6eb; border-bottom:1px solid #e5e6eb; background:#fff; }
-.calendar-day:nth-child(7n+1) { border-left:1px solid #e5e6eb; }.calendar-day.muted { background:#fafafa; color:#c9cdd4; }.calendar-day.today { box-shadow:inset 0 0 0 2px #165dff; }
-.day-head { display:flex; align-items:center; justify-content:space-between; }.day-head strong { font-size:15px; }.day-head span { padding:2px 6px; color:#86909c; background:#f2f3f5; border-radius:10px; font-size:10px; }
-.create-day { width:100%; height:86px; margin-top:10px; color:#165dff; background:transparent; border:1px dashed #bedaff; border-radius:6px; cursor:pointer; opacity:0; }.calendar-day:hover .create-day { opacity:1; }
-.day-tasks { display:grid; gap:6px; margin-top:8px; }.day-tasks button { display:grid; gap:5px; padding:8px; border:1px solid transparent; border-left-width:3px; border-radius:4px; text-align:left; cursor:pointer; transition:box-shadow .2s ease, transform .2s ease; }.day-tasks button:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); transform:translateY(-1px); }.day-tasks button:disabled { cursor:default; opacity:.8; transform:none; }.task-meta { display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; }.task-meta > span { overflow:hidden; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }.task-meta :deep(.arco-tag) { flex:none; height:20px; padding:0 6px; border-radius:10px; line-height:18px; }.day-tasks strong { overflow:hidden; color:#1d2129; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.weekday-row { padding:10px 0; color:var(--tql-text-tertiary); background:var(--tql-bg-subtle); text-align:center; font-size:12px; }
+.calendar-day { min-height:206px; padding:12px; border-right:1px solid var(--tql-border); border-bottom:1px solid var(--tql-border); background:var(--tql-color-white); }
+.calendar-day:nth-child(7n+1) { border-left:1px solid var(--tql-border); }.calendar-day.muted { background:var(--tql-bg-muted); color:var(--tql-text-disabled); }.calendar-day.today { box-shadow:inset 0 0 0 2px var(--tql-primary); }
+.day-head { display:flex; align-items:center; justify-content:space-between; }.day-head strong { font-size:15px; }.day-head span { padding:2px 6px; color:var(--tql-text-tertiary); background:var(--tql-bg-hover); border-radius:10px; font-size:10px; }
+.create-day { width:100%; height:86px; margin-top:10px; color:var(--tql-primary); background:transparent; border:1px dashed var(--tql-primary-border); border-radius:6px; cursor:pointer; opacity:0; }.calendar-day:hover .create-day { opacity:1; }
+.day-tasks { display:grid; grid-auto-rows:72px; gap:6px; max-height:150px; margin-top:8px; overflow:hidden; }
+.day-tasks.scrollable { padding-right:5px; overflow-y:auto; overscroll-behavior:contain; scroll-snap-type:y mandatory; scrollbar-color:var(--tql-primary-border-strong) var(--tql-primary-track); scrollbar-gutter:stable; scrollbar-width:thin; }
+.day-tasks.scrollable:focus-visible { outline:2px solid var(--tql-primary-border-strong); outline-offset:2px; border-radius:4px; }
+.day-tasks.scrollable::-webkit-scrollbar { width:5px; }
+.day-tasks.scrollable::-webkit-scrollbar-track { background:var(--tql-primary-track); border-radius:999px; }
+.day-tasks.scrollable::-webkit-scrollbar-thumb { background:var(--tql-primary-border-strong); border-radius:999px; }
+.day-tasks.scrollable::-webkit-scrollbar-thumb:hover { background:var(--tql-primary-hover); }
+.day-tasks button { display:grid; gap:5px; min-height:72px; padding:8px; overflow:hidden; border:1px solid transparent; border-left-width:3px; border-radius:4px; scroll-snap-align:start; text-align:left; cursor:pointer; transition:box-shadow .2s ease, transform .2s ease; }.day-tasks button:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); transform:translateY(-1px); }.day-tasks button:disabled { cursor:default; opacity:.8; transform:none; }.task-meta { display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; }.task-meta > span { overflow:hidden; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }.task-meta :deep(.arco-tag) { flex:none; height:20px; padding:0 6px; border-radius:10px; line-height:18px; }.day-tasks strong { overflow:hidden; color:var(--tql-text-primary); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
 .calendar-task-progress { display:grid; grid-template-columns:minmax(28px,1fr) auto; align-items:center; gap:6px; min-width:0; }
-.calendar-task-progress > span { color:#4e5969; font-size:10px; line-height:12px; white-space:nowrap; }
+.calendar-task-progress > span { color:var(--tql-text-secondary); font-size:10px; line-height:12px; white-space:nowrap; }
 .calendar-task-progress :deep(.arco-progress) { min-width:0; }
-.task-active { border-color:#bedaff !important; border-left-color:#165dff !important; background:#e8f3ff; }.task-active .task-meta > span { color:#165dff; }
-.task-draft { border-color:#ffe4ba !important; border-left-color:#ff7d00 !important; background:#fff7e8; }.task-draft .task-meta > span { color:#d25f00; }
-.task-terminated { border-color:#fdcdc5 !important; border-left-color:#f53f3f !important; background:#fff3f0; }.task-terminated .task-meta > span { color:#cb2634; }.task-terminated :deep(.arco-progress-line-bar) { background:#f53f3f !important; }
-.task-completed { border-color:#aff0b5 !important; border-left-color:#00b42a !important; background:#e8ffea; }.task-completed .task-meta > span { color:#009a29; }
-.task-expired { border-color:#e5e6eb !important; border-left-color:#86909c !important; background:#f7f8fa; }.task-expired .task-meta > span { color:#86909c; }
-.platform-tabs { display:flex; align-items:center; gap:10px; }.platform-tabs button { display:flex; align-items:center; gap:7px; padding:8px 15px; color:#4e5969; background:#fff; border:1px solid #e5e6eb; border-radius:20px; cursor:pointer; }.platform-tabs button.active { color:#165dff; border-color:#165dff; box-shadow:0 0 0 2px #e8f3ff; }
-.platform-mark, .account-platform i { display:inline-grid; width:22px; height:22px; place-items:center; color:#fff; border-radius:6px; font-style:normal; font-size:11px; }.all { background:#165dff; }.douyin { background:#111; }.kuaishou { background:#ff5c38; }.redbook { background:#f53f3f; }.channels { background:#f7a928; }
-.metric-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }.metric-grid article { padding:24px 28px; border:1px solid #e5e6eb; border-radius:8px; background:#fff; overflow:hidden; position:relative; }.metric-grid article::after { position:absolute; right:-20px; bottom:-40px; width:130px; height:130px; border-radius:50%; opacity:.35; content:""; }
-.metric-grid span { display:block; color:#4e5969; }.metric-grid strong { display:block; margin:8px 0; font-size:32px; }.metric-grid small { color:#00b42a; }.metric-blue::after { background:#bedaff; }.metric-blue strong { color:#165dff; }.metric-purple::after { background:#e8d9ff; }.metric-purple strong { color:#722ed1; }.metric-green::after { background:#b5f5ec; }.metric-green strong { color:#0f9f85; }
-.panel-title { display:flex; align-items:center; justify-content:space-between; }.panel-title > div { display:flex; flex-direction:column; gap:5px; }.panel-title strong { font-size:16px; }.panel-title span { color:#86909c; font-size:12px; }
-.chart { display:grid; grid-template-columns:45px 1fr; margin-top:24px; }.y-axis { display:flex; flex-direction:column; justify-content:space-between; height:280px; color:#86909c; font-size:11px; }.chart svg { width:100%; height:280px; overflow:visible; }.grid-lines line { stroke:#e5e6eb; stroke-width:1; }.x-axis { grid-column:2; display:flex; justify-content:space-between; padding-top:10px; color:#86909c; font-size:11px; }
-.platform-tabs.inner { padding-bottom:16px; border-bottom:1px solid #e5e6eb; }.platform-actions { display:flex; gap:10px; margin-left:auto; }
+.day-tasks button.task-active { border-color:var(--tql-primary-border); border-left-color:var(--tql-primary); background:var(--tql-primary-soft); }.task-active .task-meta > span { color:var(--tql-primary); }
+.day-tasks button.task-draft { border-color:var(--tql-warning-border); border-left-color:var(--tql-warning); background:var(--tql-warning-soft); }.task-draft .task-meta > span { color:var(--tql-warning-hover); }
+.day-tasks button.task-terminated { border-color:var(--tql-danger-border); border-left-color:var(--tql-danger); background:var(--tql-danger-soft); }.task-terminated .task-meta > span { color:var(--tql-danger-hover); }.day-tasks button.task-terminated :deep(.arco-progress-line-bar) { background:var(--tql-danger); }
+.day-tasks button.task-completed { border-color:var(--tql-success-border); border-left-color:var(--tql-success); background:var(--tql-success-soft); }.task-completed .task-meta > span { color:var(--tql-success-hover); }
+.day-tasks button.task-expired { border-color:var(--tql-border); border-left-color:var(--tql-text-tertiary); background:var(--tql-bg-subtle); }.task-expired .task-meta > span { color:var(--tql-text-tertiary); }
+.platform-tabs { display:flex; align-items:center; gap:10px; }.platform-tabs button { display:flex; align-items:center; gap:7px; padding:8px 15px; color:var(--tql-text-secondary); background:var(--tql-color-white); border:1px solid var(--tql-border); border-radius:20px; cursor:pointer; }.platform-tabs button.active { color:var(--tql-primary); border-color:var(--tql-primary); box-shadow:0 0 0 2px var(--tql-primary-soft); }
+.platform-mark, .account-platform i { display:inline-grid; width:22px; height:22px; place-items:center; color:var(--tql-color-white); border-radius:6px; font-style:normal; font-size:11px; }.all { background:var(--tql-primary); }.douyin { background:var(--tql-platform-douyin); }.kuaishou { background:var(--tql-platform-kuaishou); }.redbook { background:var(--tql-danger); }.channels { background:var(--tql-platform-channels); }
+.metric-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }.metric-grid article { padding:24px 28px; border:1px solid var(--tql-border); border-radius:8px; background:var(--tql-color-white); overflow:hidden; position:relative; }.metric-grid article::after { position:absolute; right:-20px; bottom:-40px; width:130px; height:130px; border-radius:50%; opacity:.35; content:""; }
+.metric-grid span { display:block; color:var(--tql-text-secondary); }.metric-grid strong { display:block; margin:8px 0; font-size:32px; }.metric-grid small { color:var(--tql-success); }.metric-blue::after { background:var(--tql-primary-border); }.metric-blue strong { color:var(--tql-primary); }.metric-purple::after { background:var(--tql-purple-soft); }.metric-purple strong { color:var(--tql-purple); }.metric-green::after { background:var(--tql-cyan-soft); }.metric-green strong { color:var(--tql-cyan); }
+.panel-title { display:flex; align-items:center; justify-content:space-between; }.panel-title > div { display:flex; flex-direction:column; gap:5px; }.panel-title strong { font-size:16px; }.panel-title span { color:var(--tql-text-tertiary); font-size:12px; }
+.chart { display:grid; grid-template-columns:45px 1fr; margin-top:24px; }.y-axis { display:flex; flex-direction:column; justify-content:space-between; height:280px; color:var(--tql-text-tertiary); font-size:11px; }.chart svg { width:100%; height:280px; overflow:visible; }.grid-lines line { stroke:var(--tql-border); stroke-width:1; }.x-axis { grid-column:2; display:flex; justify-content:space-between; padding-top:10px; color:var(--tql-text-tertiary); font-size:11px; }
+.platform-tabs.inner { padding-bottom:16px; border-bottom:1px solid var(--tql-border); }.platform-actions { display:flex; gap:10px; margin-left:auto; }
 .account-platform { display:flex; align-items:center; gap:8px; }.account-platform i { width:24px; height:24px; }
-.inline-wizard-page { min-height:calc(100vh - 100px); background:#fff; border:1px solid #e5e6eb; border-radius:8px; }
-.inline-wizard-header { display:flex; height:54px; align-items:center; gap:4px; padding:0 12px; border-bottom:1px solid #e5e6eb; }
+.inline-wizard-page { min-height:calc(100vh - 100px); background:var(--tql-color-white); border:1px solid var(--tql-border); border-radius:8px; }
+.inline-wizard-header { display:flex; height:54px; align-items:center; gap:4px; padding:0 12px; border-bottom:1px solid var(--tql-border); }
 .inline-wizard-header strong { font-size:15px; font-weight:500; }
-.wizard-back { color:#4e5969; }
-.wizard-shell { display:flex; width:100%; height:calc(100vh - 155px); min-width:0; min-height:0; overflow:hidden; flex-direction:column; background:#fff; }
-.wizard-progress { flex:none; padding:64px 40px 42px; background:#fff; }
-.wizard-progress :deep(.arco-steps) { max-width:760px; margin:0 auto; }
-.wizard-content { flex:1; min-width:0; min-height:0; overflow-x:hidden; overflow-y:auto; width:min(760px, calc(100% - 64px)); box-sizing:border-box; margin:0 auto; padding:8px 0 48px; scrollbar-width:none; -ms-overflow-style:none; }
+.wizard-back { color:var(--tql-text-secondary); }
+.wizard-shell { display:flex; width:100%; height:calc(100vh - 155px); min-width:0; min-height:0; overflow:hidden; flex-direction:column; background:var(--tql-color-white); }
+.wizard-progress { flex:none; padding:64px 48px 56px; background:var(--tql-color-white); }
+.wizard-progress :deep(.arco-steps) { max-width:880px; margin:0 auto; }
+.wizard-content { flex:1; min-width:0; min-height:0; overflow-x:hidden; overflow-y:auto; width:min(880px, calc(100% - 96px)); box-sizing:border-box; margin:0 auto; padding:16px 0 64px; scrollbar-width:none; -ms-overflow-style:none; }
 .wizard-content::-webkit-scrollbar { display:none; width:0; height:0; }
-.wizard-card { width:100%; min-width:0; min-height:0; overflow-x:hidden; padding:0; background:#fff; border:0; border-radius:0; }
+.wizard-card { width:100%; min-width:0; min-height:0; overflow-x:hidden; padding:0; background:var(--tql-color-white); border:0; border-radius:0; }
 .wizard-card :deep(.arco-row),.wizard-card :deep(.arco-col) { min-width:0; max-width:100%; }
-.wizard-card :deep(.arco-form-item) { margin-bottom:24px; }
-.mode-options { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
-.mode-options button { display:grid; grid-template-columns:36px 1fr; gap:3px 12px; padding:22px; color:#4e5969; background:#fff; border:1px solid #e5e6eb; border-radius:8px; text-align:left; cursor:pointer; transition:.2s; }
-.mode-options button svg { grid-row:1/3; align-self:center; color:#86909c; font-size:28px; }
-.mode-options button strong { color:#1d2129; font-size:16px; }
-.mode-options button span { color:#86909c; font-size:12px; line-height:20px; }
-.mode-options button:hover { border-color:#94bfff; }.mode-options button.selected { background:#f2f7ff; border-color:#165dff; box-shadow:0 0 0 2px #e8f3ff; }.mode-options button.selected svg,.mode-options button.selected strong { color:#165dff; }
+.wizard-card :deep(.arco-form-item) { margin-bottom:32px; }
+.mode-options { display:grid; grid-template-columns:repeat(2,1fr); gap:24px; }
+.mode-options button { display:grid; grid-template-columns:36px 1fr; gap:4px 16px; padding:24px; color:var(--tql-text-secondary); background:var(--tql-color-white); border:1px solid var(--tql-border); border-radius:8px; text-align:left; cursor:pointer; transition:.2s; }
+.mode-options button svg { grid-row:1/3; align-self:center; color:var(--tql-text-tertiary); font-size:28px; }
+.mode-options button strong { color:var(--tql-text-primary); font-size:16px; }
+.mode-options button span { color:var(--tql-text-tertiary); font-size:12px; line-height:20px; }
+.mode-options button:hover { border-color:var(--tql-primary-border-strong); }.mode-options button.selected { background:var(--tql-primary-subtle); border-color:var(--tql-primary); box-shadow:0 0 0 2px var(--tql-primary-soft); }.mode-options button.selected svg,.mode-options button.selected strong { color:var(--tql-primary); }
 .platform-checks { display:flex; min-height:40px; align-items:center; gap:18px; }
+.platform-quota-list { display:grid; width:100%; gap:12px; }
+.platform-quota-row { display:grid; grid-template-columns:80px repeat(2,minmax(0,1fr)); align-items:center; gap:24px; padding:16px; background:var(--tql-bg-subtle); border-radius:6px; }
+.platform-quota-row > strong { color:var(--tql-text-primary); font-size:14px; }
+.platform-quota-row label { display:grid; grid-template-columns:auto minmax(80px,1fr) auto; align-items:center; gap:8px; color:var(--tql-text-secondary); white-space:nowrap; }
+.platform-quota-row :deep(.arco-input-number) { width:100%; }
 .delivery-period { display:flex; flex-direction:column; gap:2px; line-height:20px; }
 .delivery-period span { display:block; white-space:nowrap; }
 .topic-field { display:flex; width:100%; flex-direction:column; align-items:flex-start; }
 .topic-editor { display:flex; width:100%; max-width:608px; gap:12px; }
 .topic-editor :deep(.arco-input-wrapper) { flex:1; }
+.description-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:8px; }
+.description-heading strong { color:var(--tql-text-primary); font-size:14px; font-weight:500; }
+.description-heading strong span { margin-right:4px; color:var(--tql-danger); }
+.original-requirement-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:20px; }
+.original-requirement-heading strong { color:var(--tql-text-primary); font-size:14px; font-weight:500; }
+.original-requirement-heading strong span { margin-right:4px; color:var(--tql-danger); }
+.description-ai-input { margin-top:16px; }
 .topic-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 .topic-list :deep(.arco-tag) { font-size:13px; }
-.topic-tip { margin-top:8px; color:#86909c; font-size:12px; line-height:20px; }
-.storyboard-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
-.storyboard-toolbar > div { display:flex; flex-direction:column; gap:5px; }.storyboard-toolbar strong { font-size:16px; }.storyboard-toolbar span { color:#86909c; font-size:12px; }
+.topic-tip { margin-top:8px; color:var(--tql-text-tertiary); font-size:12px; line-height:20px; }
+.storyboard-reference-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; margin-bottom:24px; }
+.storyboard-config-panel { min-width:0; padding:20px; background:var(--tql-bg-subtle); border:1px solid var(--tql-border); border-radius:8px; }
+.storyboard-toolbar { display:flex; align-items:flex-start; justify-content:space-between; padding-bottom:18px; border-bottom:1px solid var(--tql-border); }
+.storyboard-toolbar > div { display:flex; flex-direction:column; gap:5px; }.storyboard-toolbar strong { font-size:16px; }.storyboard-toolbar span { color:var(--tql-text-tertiary); font-size:12px; }
 .storyboard-toolbar .storyboard-actions { flex-direction:row; align-items:center; gap:12px; }
-.storyboard-toolbar .storyboard-actions > span { flex:none; color:#4e5969; white-space:nowrap; }
-.storyboard-content-form { margin-bottom:24px; padding-bottom:4px; border-bottom:1px solid #e5e6eb; }
+.storyboard-toolbar .storyboard-actions label { display:flex; align-items:center; gap:10px; }
+.storyboard-toolbar .storyboard-actions label > span { flex:none; color:var(--tql-text-secondary); white-space:nowrap; }
+.storyboard-toolbar .storyboard-count-input { width:120px; flex:none; }
+.storyboard-toolbar .storyboard-actions :deep(.arco-btn) { flex:none; white-space:nowrap; }
+.storyboard-reference-layout > .storyboard-config-panel:first-child .storyboard-toolbar { flex-direction:column; }
+.storyboard-reference-layout > .storyboard-config-panel:first-child .storyboard-toolbar > div:first-child { width:100%; }
+.storyboard-reference-layout > .storyboard-config-panel:first-child .storyboard-actions { width:100%; box-sizing:border-box; justify-content:space-between; margin-top:18px; padding-top:18px; border-top:1px solid var(--tql-border); }
+.storyboard-setting-block { min-width:0; padding-top:18px; }
+.material-reference-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+.setting-label { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.setting-label strong { color:var(--tql-text-primary); font-size:14px; font-weight:500; }
+.setting-label strong i { color:var(--tql-danger); font-style:normal; }
+.setting-label span { color:var(--tql-text-tertiary); font-size:12px; }
+.cover-setting-block :deep(.arco-upload-wrapper),.cover-setting-block :deep(.arco-upload) { display:block; width:100%; }
+.cover-example-upload { display:flex; min-height:56px; box-sizing:border-box; align-items:center; gap:12px; padding:8px 12px; background:var(--tql-color-white); border:1px dashed var(--tql-text-disabled); border-radius:6px; cursor:pointer; }
+.cover-example-upload:hover { border-color:var(--tql-primary); }
+.cover-example-upload > svg { flex:none; color:var(--tql-primary); font-size:22px; }
+.cover-example-upload > img { width:42px; height:42px; flex:none; object-fit:cover; border-radius:4px; }
+.cover-example-upload > div { display:flex; min-width:0; flex-direction:column; gap:4px; }
+.cover-example-upload strong,.cover-example-upload span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cover-example-upload strong { color:var(--tql-text-secondary); font-size:13px; font-weight:500; }
+.cover-example-upload span { color:var(--tql-text-tertiary); font-size:11px; }
+.bgm-reference-block :deep(.arco-select-view) { width:100%; }
+.plan-bgm-audio { width:100%; height:32px; margin-top:10px; }
+.storyboard-content-form { margin-bottom:24px; padding-bottom:4px; border-bottom:1px solid var(--tql-border); }
 .storyboard-editor-grid { width:100%; }
 .storyboard-copy-column,.storyboard-media-column { min-width:0; }
+.script-field-content { width:100%; min-width:0; }
+.script-field-content :deep(.arco-textarea-wrapper) { width:100%; }
 .storyboard-media-column :deep(.arco-upload-wrapper),.storyboard-media-column :deep(.arco-upload) { display:block; width:100%; }
 .storyboard-media-column :deep(.arco-upload-list) { width:100%; }
 .aspect-options { display:flex; width:100%; }
@@ -1730,45 +2324,61 @@ small { color:#86909c; }
 .video-upload.large { box-sizing:border-box; margin:0 auto; transition:width .2s ease, height .2s ease; }
 .video-upload.large.landscape { width:100%; height:auto; aspect-ratio:16/9; }
 .video-upload.large.portrait { width:min(72%, 250px); height:auto; aspect-ratio:9/16; }
-.original-requirement { margin-top:24px; }
-.confirm-summary { display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:24px; border-top:1px solid #e5e6eb; border-left:1px solid #e5e6eb; }
-.confirm-summary > div { min-height:88px; padding:18px 20px; border-right:1px solid #e5e6eb; border-bottom:1px solid #e5e6eb; }
-.confirm-summary span,.confirm-summary strong { display:block; }.confirm-summary span { margin-bottom:8px; color:#86909c; font-size:12px; }.confirm-summary strong { font-size:15px; }
-.confirm-copy { margin-top:22px; padding:20px; background:#f7f8fa; border-radius:6px; }.confirm-copy p { margin:6px 0 18px; color:#4e5969; line-height:1.7; }.confirm-copy p:last-child { margin-bottom:0; }
-.wizard-footer { flex:none; width:100%; box-sizing:border-box; padding:16px 32px; background:#fff; border-top:1px solid #e5e6eb; box-shadow:0 -2px 8px rgba(0,0,0,.03); }
+.original-requirement { margin-top:8px; }
+.confirm-summary { display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:24px; border-top:1px solid var(--tql-border); border-left:1px solid var(--tql-border); }
+.confirm-summary > div { min-height:88px; padding:18px 20px; border-right:1px solid var(--tql-border); border-bottom:1px solid var(--tql-border); }
+.confirm-summary span,.confirm-summary strong { display:block; }.confirm-summary span { margin-bottom:8px; color:var(--tql-text-tertiary); font-size:12px; }.confirm-summary strong { font-size:15px; }
+.confirm-copy { margin-top:22px; padding:20px; background:var(--tql-bg-subtle); border-radius:6px; }.confirm-copy p { margin:6px 0 18px; color:var(--tql-text-secondary); line-height:1.7; }.confirm-copy p:last-child { margin-bottom:0; }
+.wizard-footer { flex:none; width:100%; box-sizing:border-box; padding:16px 32px; background:var(--tql-color-white); border-top:1px solid var(--tql-border); box-shadow:0 -2px 8px rgba(0,0,0,.03); }
 .wizard-footer-actions { display:flex; width:100%; min-width:0; min-height:32px; align-items:center; justify-content:flex-end; gap:8px; margin:0; }
 .wizard-footer-actions > .arco-space { margin-left:0; }
-.form-section { padding:20px 2px 26px; border-bottom:1px solid #e5e6eb; }.form-section:first-child { padding-top:0; }.form-section h3 { display:flex; align-items:center; gap:9px; margin:0 0 20px; font-size:16px; }.form-section h3 span { display:grid; width:24px; height:24px; place-items:center; color:#fff; background:#165dff; border-radius:50%; font-size:12px; }
-.section-title-row { display:flex; align-items:center; justify-content:space-between; }.full-width { width:100%; }.release-date-item :deep(.arco-form-item-extra) { color:#f53f3f; }.account-selector { display:flex; align-items:center; justify-content:flex-start; gap:18px; width:100%; padding:12px 16px; background:#f7f8fa; border-radius:6px; }.account-selector > span { margin-left:auto; color:#4e5969; }.account-selector strong { color:#165dff; }
-.duration-tip { margin-top:6px; color:#86909c; font-size:12px; }.video-upload { display:flex; width:170px; height:230px; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#86909c; background:#f7f8fa; border:1px dashed #c9cdd4; border-radius:8px; }.video-upload svg { color:#165dff; font-size:28px; }.video-upload strong { color:#4e5969; }.video-upload span { font-size:11px; }
-.drawer-footer { display:flex; align-items:center; justify-content:space-between; width:100%; }.drawer-footer > span { color:#86909c; font-size:12px; }
-.detail-hero { display:flex; align-items:flex-start; justify-content:space-between; padding:4px 0 22px; }.detail-hero h2 { margin:12px 0 6px; }.detail-hero p { margin:0; color:#86909c; }.detail-page > h3 { margin:26px 0 12px; }.detail-copy { padding:16px; color:#4e5969; line-height:1.8; background:#f7f8fa; border-radius:6px; }
-.delivery-summary { display:flex; align-items:center; gap:24px; margin-bottom:16px; padding:12px 16px; background:#f7f8fa; }.delivery-summary button { margin-left:auto; }
-.employee-search { border-radius:8px; background:#f7f8fa; }
-.org-selector { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(300px,.85fr); height:520px; margin-top:16px; overflow:hidden; border:1px solid #e5e6eb; border-radius:10px; background:#fff; }
+.form-section { padding:20px 2px 26px; border-bottom:1px solid var(--tql-border); }.form-section:first-child { padding-top:0; }.form-section h3 { display:flex; align-items:center; gap:9px; margin:0 0 20px; font-size:16px; }.form-section h3 span { display:grid; width:24px; height:24px; place-items:center; color:var(--tql-color-white); background:var(--tql-primary); border-radius:50%; font-size:12px; }
+.section-title-row { display:flex; align-items:center; justify-content:space-between; }.full-width { width:100%; }.release-date-item :deep(.arco-form-item-extra) { color:var(--tql-danger); }.account-selector { display:flex; align-items:center; justify-content:flex-start; gap:18px; width:100%; padding:12px 16px; background:var(--tql-bg-subtle); border-radius:6px; }.account-selector > span { margin-left:auto; color:var(--tql-text-secondary); }.account-selector strong { color:var(--tql-primary); }
+.duration-tip { margin-top:6px; color:var(--tql-text-tertiary); font-size:12px; }.video-upload { display:flex; width:170px; height:230px; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--tql-text-tertiary); background:var(--tql-bg-subtle); border:1px dashed var(--tql-text-disabled); border-radius:8px; }.video-upload svg { color:var(--tql-primary); font-size:28px; }.video-upload strong { color:var(--tql-text-secondary); }.video-upload span { font-size:11px; }
+.drawer-footer { display:flex; align-items:center; justify-content:space-between; width:100%; }.drawer-footer > span { color:var(--tql-text-tertiary); font-size:12px; }
+.detail-hero { display:flex; align-items:flex-start; justify-content:space-between; padding:4px 0 22px; }.detail-hero h2 { margin:12px 0 6px; }.detail-hero p { margin:0; color:var(--tql-text-tertiary); }.detail-page > h3 { margin:26px 0 12px; }.detail-copy { padding:16px; color:var(--tql-text-secondary); line-height:1.8; background:var(--tql-bg-subtle); border-radius:6px; }
+.delivery-summary { display:flex; align-items:center; gap:24px; margin-bottom:16px; padding:12px 16px; background:var(--tql-bg-subtle); }.delivery-summary button { margin-left:auto; }
+.employee-search { border-radius:8px; background:var(--tql-bg-subtle); }
+.org-selector { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(300px,.85fr); height:520px; margin-top:16px; overflow:hidden; border:1px solid var(--tql-border); border-radius:10px; background:var(--tql-color-white); }
 .org-tree,.selected-org { min-width:0; padding:20px; overflow:hidden; }
-.org-tree { border-right:1px solid #e5e6eb; }
-.selected-org { display:flex; flex-direction:column; background:linear-gradient(180deg,#f7f9ff 0%,#f7f8fa 100%); }
+.org-tree { border-right:1px solid var(--tql-border); }
+.selected-org { display:flex; flex-direction:column; background:linear-gradient(180deg,var(--tql-bg-highlight) 0%,var(--tql-bg-subtle) 100%); }
 .selector-heading { display:flex; align-items:center; justify-content:space-between; height:28px; margin-bottom:14px; }
-.selector-heading strong { color:#1d2129; font-size:15px; font-weight:600; }
-.selector-heading span { padding:3px 9px; color:#165dff; font-size:12px; background:#e8f3ff; border-radius:10px; }
+.selector-heading strong { color:var(--tql-text-primary); font-size:15px; font-weight:600; }
+.selector-heading span { padding:3px 9px; color:var(--tql-primary); font-size:12px; background:var(--tql-primary-soft); border-radius:10px; }
 .employee-tree-loading { display:block; height:420px; overflow:auto; padding-right:4px; }
 .selected-employee-list { display:grid; gap:10px; padding-right:4px; overflow:auto; }
-.selected-employee { position:relative; padding:13px 34px 12px 14px; border:1px solid #d9e5ff; border-radius:8px; background:#fff; box-shadow:0 2px 8px rgba(22,93,255,.06); }
+.selected-employee { position:relative; padding:13px 34px 12px 14px; border:1px solid var(--tql-border-primary-soft); border-radius:8px; background:var(--tql-color-white); box-shadow:0 2px 8px rgba(22,93,255,.06); }
 .selected-employee span,.selected-employee small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.selected-employee span { color:#1d2129; font-size:14px; font-weight:600; }
+.selected-employee span { color:var(--tql-text-primary); font-size:14px; font-weight:600; }
 .selected-employee-meta { display:grid; gap:4px; margin-top:7px; }
-.selected-employee small { color:#6b7785; font-size:12px; }
-.selected-employee button { position:absolute; top:12px; right:10px; width:22px; height:22px; padding:0; color:#86909c; background:#f2f3f5; border:0; border-radius:50%; cursor:pointer; }
-.selected-employee button:hover { color:#f53f3f; background:#ffece8; }
-.selection-tip { margin:auto 0 0; padding-top:14px; color:#86909c; font-size:12px; line-height:1.6; }
-.personnel-import-toolbar { display:flex; align-items:center; gap:12px; margin:16px 0; padding:14px 16px; background:#f7f8fa; border-radius:8px; }
-.personnel-file-name { min-width:0; flex:1; overflow:hidden; color:#4e5969; text-overflow:ellipsis; white-space:nowrap; }
-.personnel-import-footer { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:16px; color:#4e5969; border-top:1px solid #e5e6eb; }
-.selected-count { display:inline-flex; align-items:center; gap:5px; color:#4e5969; white-space:nowrap; }.selected-count strong { color:#165dff; }.selected-count :deep(.arco-link) { margin-left:5px; }
+.selected-employee small { color:var(--tql-text-sidebar-secondary); font-size:12px; }
+.selected-employee button { position:absolute; top:12px; right:10px; width:22px; height:22px; padding:0; color:var(--tql-text-tertiary); background:var(--tql-bg-hover); border:0; border-radius:50%; cursor:pointer; }
+.selected-employee button:hover { color:var(--tql-danger); background:var(--tql-border-danger-soft); }
+.selection-tip { margin:auto 0 0; padding-top:14px; color:var(--tql-text-tertiary); font-size:12px; line-height:1.6; }
+.personnel-import-toolbar { display:flex; align-items:center; gap:12px; margin:16px 0; padding:14px 16px; background:var(--tql-bg-subtle); border-radius:8px; }
+.personnel-file-name { min-width:0; flex:1; overflow:hidden; color:var(--tql-text-secondary); text-overflow:ellipsis; white-space:nowrap; }
+.personnel-import-footer { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:16px; color:var(--tql-text-secondary); border-top:1px solid var(--tql-border); }
+.selected-count { display:inline-flex; align-items:center; gap:5px; color:var(--tql-text-secondary); white-space:nowrap; }.selected-count strong { color:var(--tql-primary); }.selected-count :deep(.arco-link) { margin-left:5px; }
 .selected-personnel-alert { margin-bottom:16px; }
 .account-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 20px; }
 .account-status-tip { align-self:start; margin-top:30px; }
-.import-drop { display:flex; height:180px; flex-direction:column; align-items:center; justify-content:center; gap:10px; }.import-drop svg { color:#165dff; font-size:32px; }.import-drop span { color:#86909c; font-size:12px; }
+.import-drop { display:flex; height:180px; flex-direction:column; align-items:center; justify-content:center; gap:10px; }.import-drop svg { color:var(--tql-primary); font-size:32px; }.import-drop span { color:var(--tql-text-tertiary); font-size:12px; }
+.panel-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.panel-toolbar > div { display:flex; align-items:baseline; gap:10px; }
+.panel-toolbar strong { font-size:16px; }
+.panel-toolbar span { color:var(--tql-text-tertiary); font-size:12px; }
+.bgm-name { display:flex; min-width:240px; flex-direction:column; gap:8px; }
+.bgm-name audio { width:250px; height:32px; }
+.bgm-copyright { display:flex; flex-direction:column; gap:4px; }
+.bgm-copyright span { max-width:230px; overflow:hidden; color:var(--tql-text-tertiary); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.bgm-form { margin-top:20px; }
+.bgm-form :deep(.arco-input-number) { width:100%; }
 @media (max-width:1280px) { .search-panel form { grid-template-columns:repeat(2,minmax(240px,1fr)); } }
+@media (max-width:1100px) { .storyboard-reference-layout { grid-template-columns:1fr; }.material-reference-fields { grid-template-columns:1fr 1fr; } }
+@media (max-width:720px) {
+  .calendar-toolbar { align-items:flex-start; flex-direction:column; gap:var(--tql-space-3); }
+  .calendar-panel :deep(.arco-card-body) { overflow-x:auto; }
+  .weekday-row, .calendar-grid { min-width:980px; }
+}
 </style>

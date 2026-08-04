@@ -67,7 +67,7 @@
 					<text class="activity-name">{{ task.activityName || 'AI短视频' }}</text>
 					<text class="stage-tag" :class="`stage-tag--${tone(task.stage)}`">{{ task.stageLabel }}</text>
 				</view>
-				<text class="task-name">{{ task.planName }}</text>
+				<view class="task-name-line"><text class="task-name">{{ task.planName }}</text><text class="creation-tag">{{ creationLabel(task) }}</text></view>
 				<text class="task-instruction">{{ task.taskInstruction }}</text>
 				<view class="task-meta">
 					<text class="deadline" :class="{ 'deadline--danger': isOverdue(task.deadline) }">{{ deadline(task.deadline) }}</text>
@@ -85,7 +85,7 @@
 
 <script>
 	import { fetchContentTasks } from '@/api/content-tasks.js'
-	import { categoryLabel, formatDeadline, stageTone } from '@/utils/content-task.js'
+	import { categoryLabel, contentCreationLabel, formatDeadline, stageTone } from '@/utils/content-task.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
 
 	export default {
@@ -156,7 +156,8 @@
 			},
 			tone: stageTone,
 			deadline: formatDeadline,
-			isOverdue(value) { return value && new Date(value).getTime() < Date.now() }
+			isOverdue(value) { return value && new Date(value).getTime() < Date.now() },
+			creationLabel: contentCreationLabel
 		}
 	}
 </script>
@@ -202,6 +203,9 @@
 	.stage-tag--danger { background: #fff1f0; color: #f53f3f; }
 	.stage-tag--muted { background: #f2f3f5; color: #4e5969; }
 	.task-name { display: block; margin-top: 20rpx; font-size: 32rpx; font-weight: 650; line-height: 1.4; }
+	.task-name-line { display: flex; align-items: center; min-width: 0; margin-top: 20rpx; }
+	.task-name-line .task-name { min-width: 0; margin-top: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.creation-tag { flex: 0 0 auto; margin-left: 12rpx; padding: 6rpx 10rpx; border: 1rpx solid #bed4ff; border-radius: 8rpx; background: #f2f7ff; color: #165dff; font-size: 19rpx; line-height: 1; }
 	.task-instruction { display: -webkit-box; margin-top: 12rpx; overflow: hidden; color: #4e5969; font-size: 24rpx; line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 	.task-meta { margin-top: 20rpx; color: #86909c; font-size: 22rpx; }
 	.deadline--danger { color: #f53f3f; }

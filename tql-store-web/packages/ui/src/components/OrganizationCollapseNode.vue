@@ -100,19 +100,19 @@ function toggleOrganization(node: OrganizationSelectorNode, checked: boolean) {
 
 <style scoped>
 .organization-collapse { width:100%; background:transparent; }
-.organization-collapse :deep(.arco-collapse-item) { overflow:hidden; margin-bottom:8px; border:1px solid #e5e6eb; border-radius:6px; background:#fff; }
-.organization-collapse :deep(.arco-collapse-item-header) { min-height:42px; padding:0 12px; color:#1d2129; background:#fff; }
-.organization-collapse :deep(.arco-collapse-item-header:hover) { background:#f7f8fa; }
-.organization-collapse :deep(.arco-collapse-item-active > .arco-collapse-item-header) { background:#f2f7ff; }
-.organization-collapse :deep(.arco-collapse-item-icon-hover) { color:#4e5969; }
-.organization-collapse :deep(.arco-collapse-item-content) { padding:8px 10px 10px; background:#fafbfc; }
+.organization-collapse :deep(.arco-collapse-item) { overflow:hidden; margin-bottom:8px; border:1px solid var(--tql-border); border-radius:6px; background:var(--tql-color-white); }
+.organization-collapse :deep(.arco-collapse-item-header) { min-height:42px; padding:0 12px; color:var(--tql-text-primary); background:var(--tql-color-white); }
+.organization-collapse :deep(.arco-collapse-item-header:hover) { background:var(--tql-bg-subtle); }
+.organization-collapse :deep(.arco-collapse-item-active > .arco-collapse-item-header) { background:var(--tql-primary-subtle); }
+.organization-collapse :deep(.arco-collapse-item-icon-hover) { color:var(--tql-text-secondary); }
+.organization-collapse :deep(.arco-collapse-item-content) { padding:8px 10px 10px; background:var(--tql-bg-panel); }
 .organization-header { display:flex; min-width:0; width:100%; align-items:center; gap:10px; }
 .organization-name { min-width:0; flex:1; overflow:hidden; font-weight:500; text-overflow:ellipsis; white-space:nowrap; }
 .organization-content { display:grid; gap:8px; }
 .organization-employees { display:grid; gap:4px; }
 .employee-option { display:flex; min-height:36px; align-items:center; gap:10px; padding:0 10px; border-radius:4px; cursor:pointer; }
-.employee-option:hover { background:#e8f3ff; }
-.employee-option span { min-width:0; flex:1; overflow:hidden; color:#1d2129; text-overflow:ellipsis; white-space:nowrap; }
-.employee-option small { color:#86909c; font-size:12px; }
-.organization-content > .organization-collapse { padding-left:14px; border-left:1px solid #e5e6eb; }
+.employee-option:hover { background:var(--tql-primary-soft); }
+.employee-option span { min-width:0; flex:1; overflow:hidden; color:var(--tql-text-primary); text-overflow:ellipsis; white-space:nowrap; }
+.employee-option small { color:var(--tql-text-tertiary); font-size:12px; }
+.organization-content > .organization-collapse { padding-left:14px; border-left:1px solid var(--tql-border); }
 </style>

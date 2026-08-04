@@ -2,22 +2,23 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { getToken } from '@tql-store/auth';
 import { fetchMenus } from '@tql-store/api';
 import {
-  AppShell,
-  AiContentWorkspacePage,
-  CostBomPage,
-  CostMasterDataPage,
-  DashboardPage,
-  IntegrationSyncPage,
-  InventoryTaskPage,
-  KingdeeOutboundPage,
-  LoginPage,
-  ProfilePage,
-  RoleManagementPage,
-  StoreMappingPage,
-  SystemStorePage,
-  UserManagementPage
+  AppShell
 } from '@tql-store/ui';
 import { appConfig } from './config';
+
+const LoginPage = () => import('@tql-store/ui/pages/LoginPage.vue');
+const DashboardPage = () => import('@tql-store/ui/pages/DashboardPage.vue');
+const AiContentWorkspacePage = () => import('@tql-store/ui/pages/AiContentWorkspacePage.vue');
+const UserManagementPage = () => import('@tql-store/ui/pages/UserManagementPage.vue');
+const RoleManagementPage = () => import('@tql-store/ui/pages/RoleManagementPage.vue');
+const IntegrationSyncPage = () => import('@tql-store/ui/pages/IntegrationSyncPage.vue');
+const ProfilePage = () => import('@tql-store/ui/pages/ProfilePage.vue');
+const CostBomPage = () => import('@tql-store/ui/pages/CostBomPage.vue');
+const InventoryTaskPage = () => import('@tql-store/ui/pages/InventoryTaskPage.vue');
+const CostMasterDataPage = () => import('@tql-store/ui/pages/CostMasterDataPage.vue');
+const KingdeeOutboundPage = () => import('@tql-store/ui/pages/KingdeeOutboundPage.vue');
+const StoreMappingPage = () => import('@tql-store/ui/pages/StoreMappingPage.vue');
+const SystemStorePage = () => import('@tql-store/ui/pages/SystemStorePage.vue');
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -56,7 +57,8 @@ const aiContentModuleByPath = {
   '/content/plans': 'plans',
   '/content/calendar': 'calendar',
   '/content/analytics': 'analytics',
-  '/content/accounts': 'accounts'
+  '/content/accounts': 'accounts',
+  '/content/base-data': 'bgm'
 } as const;
 let routesReady = false;
 
@@ -64,7 +66,7 @@ router.beforeEach(async (to) => {
   if (import.meta.env.DEV && to.query.preview === '1') return true;
   const token = getToken(appConfig.clientType);
   if (!to.meta.public && !token) return { path: '/login', query: { redirect: to.fullPath } };
-  if (token && !routesReady) {
+  if (token) {
     const menus = await fetchMenus();
     menus.filter(menu => menu.type === 'MENU' && menu.path && menu.componentKey && menu.status === 1)
       .forEach(menu => {
@@ -80,10 +82,13 @@ router.beforeEach(async (to) => {
           meta: { permission: menu.permission }
         });
     });
+    const firstLoad = !routesReady;
     routesReady = true;
-    return to.path === '/' || to.path === '/login'
-      ? { path: '/dashboard', replace: true }
-      : { path: to.fullPath, replace: true };
+    if (firstLoad) {
+      return to.path === '/' || to.path === '/login'
+        ? { path: '/dashboard', replace: true }
+        : { path: to.fullPath, replace: true };
+    }
   }
   if (to.path === '/login' && token) return '/dashboard';
   if (to.path === '/') return token ? '/dashboard' : '/login';

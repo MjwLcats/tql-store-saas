@@ -28,6 +28,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ContentPlanService {
@@ -35,6 +37,7 @@ public class ContentPlanService {
     private static final Set<String> CREATION_MODES =
             Set.of("STANDARD_TEMPLATE", "AI_ASSISTED", "SELF_CREATED");
     private static final Set<String> TRAINING_POLICIES = Set.of("NONE", "REQUIRED", "DYNAMIC");
+    private static final Set<String> PUBLISH_PLATFORMS = Set.of("抖音", "快手", "小红书", "视频号");
 
     private final JdbcTemplate jdbcTemplate;
     private final NamedParameterJdbcTemplate namedJdbcTemplate;
@@ -46,7 +49,7 @@ public class ContentPlanService {
 
     @Transactional
     public Long createActivity(Long tenantId, Long operatorId, CreateActivityRequest request) {
-        validateReleaseDate(request.startTime());
+        validateSchedule(request.startTime(), request.releaseStartTime());
         if (!request.endTime().isAfter(request.startTime())) {
             throw new IllegalArgumentException("活动结束时间必须晚于开始时间");
         }
@@ -54,15 +57,16 @@ public class ContentPlanService {
         requireActiveEmployee(tenantId, ownerId);
         return insertAndReturnId("""
                 INSERT INTO ops_content_activity
-                    (tenant_id, activity_name, objective, start_time, end_time, owner_id, status,
+                    (tenant_id, activity_name, objective, start_time, release_start_time, end_time, owner_id, status,
                      create_by, update_by)
-                VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)
                 """, tenantId, request.name().trim(), trimToNull(request.objective()),
-                request.startTime(), request.endTime(), ownerId, operatorId, operatorId);
+                request.startTime(), request.releaseStartTime(), request.endTime(), ownerId, operatorId, operatorId);
     }
 
     @Transactional
     public Long createPlan(Long tenantId, Long operatorId, CreatePlanRequest request) {
+        validatePlatforms(request.platforms());
         String creationMode = normalized(request.creationMode());
         String trainingPolicy = normalized(request.trainingPolicy());
         int storyboardCount = normalizeStoryboardCount(request.storyboardCount(), creationMode);
@@ -96,7 +100,7 @@ public class ContentPlanService {
 
     @Transactional
     public void updateActivity(Long tenantId, Long operatorId, Long activityId, UpdateContentPlanRequest request) {
-        validateReleaseDate(request.startTime());
+        validatePlatforms(request.platforms());
         if (!request.endTime().isAfter(request.startTime())) {
             throw new IllegalArgumentException("活动结束时间必须晚于开始时间");
         }
@@ -123,11 +127,11 @@ public class ContentPlanService {
         int storyboardCount = normalizeStoryboardCount(request.storyboardCount(), creationMode);
         jdbcTemplate.update("""
                 UPDATE ops_content_activity
-                SET activity_name = ?, objective = ?, start_time = ?, end_time = ?,
+                SET activity_name = ?, objective = ?, start_time = ?, release_start_time = ?, end_time = ?,
                     version = version + 1, update_by = ?
                 WHERE id = ? AND tenant_id = ? AND deleted = 0
                 """, request.name().trim(), trimToNull(request.objective()), request.startTime(),
-                request.endTime(), operatorId, activityId, tenantId);
+                request.releaseStartTime(), request.endTime(), operatorId, activityId, tenantId);
         jdbcTemplate.update("""
                 UPDATE ops_content_plan
                 SET plan_name = ?, task_instruction = ?, creation_mode = ?, storyboard_count = ?,
@@ -232,13 +236,18 @@ public class ContentPlanService {
         }
         params.addValue("pageSize", safePageSize)
                 .addValue("offset", (safePage - 1) * safePageSize);
-        return namedJdbcTemplate.query("""
-                SELECT a.id, a.activity_name, a.objective, a.start_time, a.end_time,
+        List<ActivitySummaryView> activities = namedJdbcTemplate.query("""
+                SELECT a.id, a.activity_name, a.objective, a.start_time, a.release_start_time, a.end_time,
                        a.status, a.owner_id, owner.display_name AS owner_name,
                        COUNT(DISTINCT p.id) AS plan_count,
                        COUNT(DISTINCT task.employee_id) AS employee_count,
                        COUNT(DISTINCT CASE WHEN task.current_stage = 'COMPLETED'
                                           THEN task.employee_id END) AS completed_count,
+                       COUNT(DISTINCT CASE WHEN video.id IS NOT NULL
+                                               AND (NULLIF(video.platform_video_id, '') IS NOT NULL
+                                                    OR NULLIF(video.video_url, '') IS NOT NULL)
+                                           THEN video.id END) AS completed_video_count,
+                       MAX(p.creation_mode) AS creation_mode,
                        a.create_time
                 FROM ops_content_activity a
                 LEFT JOIN sys_merchant_user owner
@@ -247,18 +256,49 @@ public class ContentPlanService {
                   ON p.activity_id = a.id AND p.tenant_id = a.tenant_id AND p.deleted = 0
                 LEFT JOIN ops_content_employee_task task
                   ON task.plan_id = p.id AND task.tenant_id = a.tenant_id AND task.deleted = 0
+                LEFT JOIN ops_content_video_performance video
+                  ON video.task_id = task.id AND video.tenant_id = a.tenant_id AND video.deleted = 0
                 """ + where + """
-                GROUP BY a.id, a.activity_name, a.objective, a.start_time, a.end_time,
+                GROUP BY a.id, a.activity_name, a.objective, a.start_time, a.release_start_time, a.end_time,
                          a.status, a.owner_id, owner.display_name, a.create_time
                 ORDER BY a.create_time DESC, a.id DESC
                 LIMIT :pageSize OFFSET :offset
                 """, params, (rs, rowNum) -> new ActivitySummaryView(
                 rs.getLong("id"), rs.getString("activity_name"), rs.getString("objective"),
                 rs.getTimestamp("start_time").toLocalDateTime(),
+                rs.getTimestamp("release_start_time").toLocalDateTime(),
                 rs.getTimestamp("end_time").toLocalDateTime(),
                 rs.getString("status"), rs.getLong("owner_id"), rs.getString("owner_name"),
                 rs.getInt("plan_count"), rs.getInt("employee_count"),
-                rs.getInt("completed_count"), rs.getTimestamp("create_time").toLocalDateTime()));
+                rs.getInt("completed_count"), rs.getInt("completed_video_count"),
+                0, rs.getString("creation_mode"),
+                rs.getTimestamp("create_time").toLocalDateTime()));
+        return activities.stream().map(activity -> new ActivitySummaryView(
+                activity.id(), activity.name(), activity.objective(), activity.startTime(),
+                activity.releaseStartTime(), activity.endTime(), activity.status(), activity.ownerId(),
+                activity.ownerName(), activity.planCount(), activity.employeeCount(), activity.completedCount(),
+                activity.completedVideoCount(), requiredVideoCountFromTasks(tenantId, activity.id()),
+                activity.creationMode(),
+                activity.createdTime())).toList();
+    }
+
+    private int requiredVideoCountFromTasks(Long tenantId, Long activityId) {
+        List<String> instructions = jdbcTemplate.queryForList("""
+                SELECT task.task_instruction
+                FROM ops_content_employee_task task
+                JOIN ops_content_plan plan
+                  ON plan.id = task.plan_id AND plan.tenant_id = task.tenant_id AND plan.deleted = 0
+                WHERE task.tenant_id = ? AND plan.activity_id = ? AND task.deleted = 0
+                """, String.class, tenantId, activityId);
+        return instructions.stream().mapToInt(this::requiredVideoCount).sum();
+    }
+
+    private int requiredVideoCount(String taskInstruction) {
+        if (taskInstruction == null || taskInstruction.isBlank()) return 0;
+        Matcher matcher = Pattern.compile("=(\\d+)/(?:\\d+)").matcher(taskInstruction);
+        int total = 0;
+        while (matcher.find()) total += Integer.parseInt(matcher.group(1));
+        return total;
     }
 
     public List<PlanSummaryView> plans(Long tenantId, Long activityId) {
@@ -295,6 +335,9 @@ public class ContentPlanService {
         if ("TERMINATED".equals(statuses.get(0))) {
             return;
         }
+        if (!List.of("ACTIVE", "PAUSED").contains(statuses.get(0))) {
+            throw new IllegalArgumentException("只有进行中或已暂停的计划可以终止");
+        }
 
         jdbcTemplate.update("""
                 UPDATE ops_content_activity
@@ -323,6 +366,44 @@ public class ContentPlanService {
     }
 
     @Transactional
+    public void pauseActivity(Long tenantId, Long operatorId, Long activityId) {
+        updateActivityExecutionStatus(tenantId, operatorId, activityId, "ACTIVE", "PAUSED", "只有进行中的计划可以暂停");
+    }
+
+    @Transactional
+    public void resumeActivity(Long tenantId, Long operatorId, Long activityId) {
+        updateActivityExecutionStatus(tenantId, operatorId, activityId, "PAUSED", "ACTIVE", "只有已暂停的计划可以恢复");
+    }
+
+    private void updateActivityExecutionStatus(
+            Long tenantId,
+            Long operatorId,
+            Long activityId,
+            String expectedStatus,
+            String targetStatus,
+            String invalidStatusMessage) {
+        List<String> statuses = jdbcTemplate.query("""
+                SELECT status FROM ops_content_activity
+                WHERE id = ? AND tenant_id = ? AND deleted = 0
+                FOR UPDATE
+                """, (rs, rowNum) -> rs.getString("status"), activityId, tenantId);
+        if (statuses.isEmpty()) throw new IllegalArgumentException("发布计划不存在");
+        if (!expectedStatus.equals(statuses.get(0))) throw new IllegalArgumentException(invalidStatusMessage);
+
+        jdbcTemplate.update("""
+                UPDATE ops_content_activity
+                SET status = ?, version = version + 1, update_by = ?
+                WHERE id = ? AND tenant_id = ? AND deleted = 0
+                """, targetStatus, operatorId, activityId, tenantId);
+        jdbcTemplate.update("""
+                UPDATE ops_content_plan
+                SET status = ?, version = version + 1, update_by = ?
+                WHERE activity_id = ? AND tenant_id = ? AND deleted = 0
+                  AND status NOT IN ('TERMINATED', 'ENDED')
+                """, targetStatus, operatorId, activityId, tenantId);
+    }
+
+    @Transactional
     public void deleteActivity(Long tenantId, Long operatorId, Long activityId) {
         List<ActivityDeleteSnapshot> activities = jdbcTemplate.query("""
                 SELECT status, start_time
@@ -339,7 +420,7 @@ public class ContentPlanService {
         boolean deletable = "DRAFT".equals(activity.status())
                 || ("ACTIVE".equals(activity.status()) && activity.startTime().isAfter(LocalDateTime.now()));
         if (!deletable) {
-            throw new IllegalArgumentException("只能删除草稿或待开始状态的任务");
+            throw new IllegalArgumentException("只有草稿或待开始的计划可以删除");
         }
         jdbcTemplate.update("""
                 UPDATE ops_content_employee_task task
@@ -470,7 +551,10 @@ public class ContentPlanService {
                 FROM ops_content_employee_task task
                 JOIN ops_content_plan plan
                   ON plan.id = task.plan_id AND plan.tenant_id = task.tenant_id AND plan.deleted = 0
+                JOIN ops_content_activity activity
+                  ON activity.id = plan.activity_id AND activity.tenant_id = task.tenant_id AND activity.deleted = 0
                 WHERE task.tenant_id = ? AND task.employee_id = ? AND task.deleted = 0
+                  AND task.current_stage <> 'TERMINATED'
                   AND (
                     ? = 'ALL'
                     OR (? = 'TODO' AND task.current_stage IN ('LOCKED','READY_TO_SHOOT','SHOOTING','NEEDS_REVISION','READY_TO_PUBLISH'))
@@ -506,7 +590,10 @@ public class ContentPlanService {
                 FROM ops_content_employee_task task
                 JOIN ops_content_plan plan
                   ON plan.id = task.plan_id AND plan.tenant_id = task.tenant_id AND plan.deleted = 0
+                JOIN ops_content_activity activity
+                  ON activity.id = plan.activity_id AND activity.tenant_id = task.tenant_id AND activity.deleted = 0
                 WHERE task.id = ? AND task.tenant_id = ? AND task.employee_id = ? AND task.deleted = 0
+                  AND task.current_stage <> 'TERMINATED'
                 """, (rs, rowNum) -> toTaskView(
                 rs.getLong("id"),
                 rs.getString("activity_name"),
@@ -647,9 +734,23 @@ public class ContentPlanService {
                 ? category : "ALL";
     }
 
-    private void validateReleaseDate(LocalDateTime startTime) {
-        if (startTime == null || !startTime.isAfter(LocalDateTime.now().plusDays(5))) {
-            throw new IllegalArgumentException("为确保流程正常进行，发布日期必须大于当前时间5天");
+    private void validateSchedule(LocalDateTime taskStartTime, LocalDateTime releaseStartTime) {
+        LocalDateTime now = LocalDateTime.now();
+        if (releaseStartTime == null || !releaseStartTime.isAfter(now.plusDays(3))) {
+            throw new IllegalArgumentException("为确保流程正常进行，发布日期必须大于当前时间3天");
+        }
+        if (taskStartTime == null || taskStartTime.isBefore(now)
+                || !taskStartTime.isBefore(releaseStartTime.toLocalDate().atStartOfDay())) {
+            throw new IllegalArgumentException("任务开始时间只能选择当前时间到发布日前一天");
+        }
+    }
+
+    private void validatePlatforms(List<String> platforms) {
+        if (platforms == null || platforms.isEmpty()) {
+            throw new IllegalArgumentException("发布平台至少选择一项");
+        }
+        if (platforms.stream().anyMatch(platform -> !PUBLISH_PLATFORMS.contains(platform))) {
+            throw new IllegalArgumentException("发布平台不合法");
         }
     }
 

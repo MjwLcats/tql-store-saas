@@ -1,7 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { getToken } from '@tql-store/auth';
-import { AiContentWorkspacePage, AppShell, DashboardPage, IconManagementPage, LoginPage, MenuManagementPage, ProfilePage, RoleManagementPage, UserManagementPage } from '@tql-store/ui';
+import { AppShell } from '@tql-store/ui';
 import { appConfig } from './config';
+
+const LoginPage = () => import('@tql-store/ui/pages/LoginPage.vue');
+const DashboardPage = () => import('@tql-store/ui/pages/DashboardPage.vue');
+const AiContentWorkspacePage = () => import('@tql-store/ui/pages/AiContentWorkspacePage.vue');
+const UserManagementPage = () => import('@tql-store/ui/pages/UserManagementPage.vue');
+const RoleManagementPage = () => import('@tql-store/ui/pages/RoleManagementPage.vue');
+const MenuManagementPage = () => import('@tql-store/ui/pages/MenuManagementPage.vue');
+const IconManagementPage = () => import('@tql-store/ui/pages/IconManagementPage.vue');
+const ProfilePage = () => import('@tql-store/ui/pages/ProfilePage.vue');
 
 export const router = createRouter({
   history: createWebHistory(),

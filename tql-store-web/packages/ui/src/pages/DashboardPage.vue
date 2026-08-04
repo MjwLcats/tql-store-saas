@@ -57,4 +57,16 @@ const today = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long',
 .guide-list span { display: flex; flex-direction: column; gap: 5px; }
 .guide-list strong { color: var(--tql-text-primary); font-size: 14px; font-weight: 500; }
 .guide-list small { color: var(--tql-text-tertiary); }
+@media (max-width: 720px) {
+  .page { padding: var(--tql-page-padding); }
+  .welcome-panel { min-height: 0; align-items: stretch; flex-direction: column; gap: var(--tql-space-4); margin-top: 0; padding: var(--tql-space-5); }
+  .welcome-panel h1 { margin-bottom: var(--tql-space-2); font-size: 22px; }
+  .welcome-panel p { line-height: 1.6; }
+  .welcome-panel :deep(.arco-btn) { width: 100%; }
+  .overview-strip { grid-template-columns: 1fr; }
+  .overview-strip div { min-height: 72px; padding: var(--tql-space-4) var(--tql-space-5); border-right: 0; border-bottom: 1px solid var(--tql-border); }
+  .overview-strip div:last-child { border-bottom: 0; }
+  .guide-section { padding: var(--tql-space-5); }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: var(--tql-space-1); }
+}
 </style>

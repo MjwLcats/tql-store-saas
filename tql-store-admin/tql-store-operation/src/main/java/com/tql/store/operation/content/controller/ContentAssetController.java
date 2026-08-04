@@ -53,4 +53,42 @@ public class ContentAssetController {
                 .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
                 .body(resource);
     }
+
+    @PostMapping("/sample-covers")
+    public ApiResponse<ContentAssetView> uploadSampleCover(
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @RequestParam("file") MultipartFile file) {
+        permissionService.require(userId, tenantId, clientType, "merchant:content:view");
+        return ApiResponse.success(contentAssetService.uploadSampleCover(tenantId, file));
+    }
+
+    @GetMapping("/covers/{tenantId}/{fileName}")
+    public ResponseEntity<Resource> sampleCover(@PathVariable Long tenantId, @PathVariable String fileName) {
+        String type = fileName.endsWith(".png") ? "image/png"
+                : fileName.endsWith(".webp") ? "image/webp" : "image/jpeg";
+        return ResponseEntity.ok().contentType(MediaType.valueOf(type))
+                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                .body(contentAssetService.loadSampleCover(tenantId, fileName));
+    }
+
+    @PostMapping("/bgm")
+    public ApiResponse<ContentAssetView> uploadBgm(
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @RequestParam("file") MultipartFile file) {
+        permissionService.requireAny(userId, tenantId, clientType,
+                "merchant:content:bgm:create", "merchant:content:bgm:update");
+        return ApiResponse.success(contentAssetService.uploadBgm(tenantId, file));
+    }
+
+    @GetMapping("/bgm/{tenantId}/{fileName}")
+    public ResponseEntity<Resource> bgm(@PathVariable Long tenantId, @PathVariable String fileName) {
+        String type = fileName.endsWith(".wav") ? "audio/wav" : fileName.endsWith(".m4a") ? "audio/mp4" : "audio/mpeg";
+        return ResponseEntity.ok().contentType(MediaType.valueOf(type))
+                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                .body(contentAssetService.loadBgm(tenantId, fileName));
+    }
 }

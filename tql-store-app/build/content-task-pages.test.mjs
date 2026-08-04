@@ -78,6 +78,28 @@ test('storyboard parser accepts relative sample asset urls from backend', () => 
 	assert.match(detailPage, /resolveAssetUrl\(apiItem\.sampleVideoUrl/)
 })
 
+test('task detail synchronizes and previews the plan video cover example', () => {
+	assert.match(detailPage, /视频封面示例/)
+	assert.match(detailPage, /coverTemplateUrl/)
+	assert.match(detailPage, /coverTemplateAspect/)
+	assert.match(detailPage, /uni\.previewImage/)
+	assert.match(detailPage, /发布时请参考该封面的构图、文字层级与视觉风格/)
+})
+
+test('reference BGM uses the cross-platform inner audio context without importing the audio component', () => {
+	assert.match(detailPage, /uni\.createInnerAudioContext\(\)/)
+	assert.match(detailPage, /toggleReferenceBgm/)
+	assert.match(detailPage, /onUnload\(\)/)
+	assert.doesNotMatch(detailPage, /<audio\b/)
+})
+
+test('task detail synchronizes the selected reference BGM', () => {
+	assert.match(detailPage, /参考 BGM/)
+	assert.match(detailPage, /referenceBgmUrl/)
+	assert.match(detailPage, /参考BGM地址/)
+	assert.match(detailPage, /class="bgm-play-button"/)
+})
+
 test('sample video opens a dedicated player instead of inline tiny playback', () => {
 	assert.match(detailPage, /@click="previewSampleVideo\(activeShot\)"/)
 	assert.match(detailPage, /pages\/content-tasks\/player\?src=/)
@@ -118,13 +140,26 @@ test('sample player delegates playback controls to native iOS, Android and H5 vi
 })
 
 test('original content tasks hide sample videos and keep one upload slot', () => {
-	assert.match(detailPage, /creationMode/)
-	assert.match(detailPage, /SELF_CREATED/)
+	assert.match(detailPage, /contentCreationType/)
+	assert.match(detailPage, /=== 'ORIGINAL'/)
 	assert.match(detailPage, /v-if="showSampleSection" class="sample-section"/)
 	assert.match(detailPage, /v-if="!isOriginalTask" class="shot-switcher"/)
 	assert.match(detailPage, /isOriginalTask \? '上传视频'/)
 	assert.match(detailPage, /if \(this\.isOriginalTask\) return 1/)
 	assert.match(detailPage, /原创任务不配置固定分镜台词/)
+})
+
+test('task lists label original and semi-original videos', () => {
+	assert.match(homePage, /creationLabel/)
+	assert.match(listPage, /creationLabel\(task\)/)
+	assert.match(listPage, /creation-tag/)
+})
+
+test('original content tasks skip compose and continue from upload to publish', () => {
+	assert.match(detailPage, /steps\.filter\(step => step\.key !== 'compose'\)/)
+	assert.match(detailPage, /activeStepKey === 'compose'/)
+	assert.match(detailPage, /this\.isOriginalTask \? 'publish' : 'compose'/)
+	assert.match(detailPage, /this\.isOriginalTask \? '去发布视频' : '检查并合成'/)
 })
 
 test('task detail keeps mobile buttons single-line and hides the send-step card', () => {

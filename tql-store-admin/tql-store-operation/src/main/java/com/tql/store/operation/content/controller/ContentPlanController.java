@@ -10,6 +10,11 @@ import com.tql.store.operation.content.model.PlanPrecheckView;
 import com.tql.store.operation.content.model.PlanPublishView;
 import com.tql.store.operation.content.model.PlanTargetRequest;
 import com.tql.store.operation.content.model.UpdateContentPlanRequest;
+import com.tql.store.operation.content.model.AiStoryboardRequest;
+import com.tql.store.operation.content.model.AiStoryboardScriptsView;
+import com.tql.store.operation.content.model.AiTextView;
+import com.tql.store.operation.content.model.AiVideoDescriptionRequest;
+import com.tql.store.operation.content.service.ContentAiService;
 import com.tql.store.operation.content.service.ContentPermissionService;
 import com.tql.store.operation.content.service.ContentPlanService;
 import jakarta.validation.Valid;
@@ -31,12 +36,15 @@ public class ContentPlanController {
 
     private final ContentPlanService contentPlanService;
     private final ContentPermissionService permissionService;
+    private final ContentAiService contentAiService;
 
     public ContentPlanController(
             ContentPlanService contentPlanService,
-            ContentPermissionService permissionService) {
+            ContentPermissionService permissionService,
+            ContentAiService contentAiService) {
         this.contentPlanService = contentPlanService;
         this.permissionService = permissionService;
+        this.contentAiService = contentAiService;
     }
 
     @PostMapping("/marketing-activities")
@@ -96,6 +104,30 @@ public class ContentPlanController {
         permissionService.require(
                 userId, tenantId, clientType, "merchant:content:plan:cancel");
         contentPlanService.terminateActivity(tenantId, userId, id);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/marketing-activities/{id}/pause")
+    public ApiResponse<Void> pauseActivity(
+            @PathVariable Long id,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType) {
+        permissionService.require(
+                userId, tenantId, clientType, "merchant:content:plan:cancel");
+        contentPlanService.pauseActivity(tenantId, userId, id);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/marketing-activities/{id}/resume")
+    public ApiResponse<Void> resumeActivity(
+            @PathVariable Long id,
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType) {
+        permissionService.require(
+                userId, tenantId, clientType, "merchant:content:plan:cancel");
+        contentPlanService.resumeActivity(tenantId, userId, id);
         return ApiResponse.success(null);
     }
 
@@ -160,5 +192,48 @@ public class ContentPlanController {
                 userId, tenantId, clientType, "merchant:content:plan:publish");
         return ApiResponse.success(contentPlanService.publish(
                 tenantId, userId, id, idempotencyKey, request.employeeIds()));
+    }
+
+    @PostMapping("/content-ai/video-description")
+    public ApiResponse<AiTextView> generateVideoDescription(
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @Valid @RequestBody AiVideoDescriptionRequest request) {
+        permissionService.require(
+                userId, tenantId, clientType, "merchant:content:plan:script:generate");
+        return ApiResponse.success(contentAiService.generateVideoDescription(request.prompt()));
+    }
+
+    @PostMapping("/content-ai/storyboard-scripts")
+    public ApiResponse<AiStoryboardScriptsView> generateStoryboardScripts(
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @Valid @RequestBody AiStoryboardRequest request) {
+        permissionService.requireAny(
+                userId,
+                tenantId,
+                clientType,
+                "merchant:content:plan:script:generate",
+                "merchant:content:plan:create",
+                "merchant:content:plan:update");
+        return ApiResponse.success(contentAiService.generateStoryboardScripts(request.description(), request.count()));
+    }
+
+    @PostMapping("/content-ai/shooting-requirement")
+    public ApiResponse<AiTextView> generateShootingRequirement(
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @Valid @RequestBody AiVideoDescriptionRequest request) {
+        permissionService.requireAny(
+                userId,
+                tenantId,
+                clientType,
+                "merchant:content:plan:script:generate",
+                "merchant:content:plan:create",
+                "merchant:content:plan:update");
+        return ApiResponse.success(contentAiService.generateShootingRequirement(request.prompt()));
     }
 }
