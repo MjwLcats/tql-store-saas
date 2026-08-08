@@ -7,6 +7,7 @@ public record ContentAccountView(
         String platform,
         String accountName,
         String platformAccountId,
+        String platformHomepageUrl,
         String accountType,
         Long organizationId,
         String organizationName,

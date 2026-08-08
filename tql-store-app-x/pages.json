@@ -17,6 +17,60 @@
 				"backgroundColor": "#F7F8FA",
 				"enablePullDownRefresh": true
 			}
+		},
+		{
+			"path": "pages/content-tasks/index",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "任务列表",
+				"backgroundColor": "#F5F7FA",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/content-tasks/detail",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "任务详情",
+				"backgroundColor": "#F7F8FA",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/content-tasks/player",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "样例视频",
+				"backgroundColor": "#05070D",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/inventory/index",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "盘点任务",
+				"backgroundColor": "#F5F7FA",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/inventory/count",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "盘点录入",
+				"backgroundColor": "#F5F7FA",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/platform-authorizations/index",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "三方平台授权",
+				"backgroundColor": "#F5F7FA",
+				"enablePullDownRefresh": false
+			}
 		}
 	],
 	"globalStyle": {

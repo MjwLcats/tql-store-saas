@@ -9,6 +9,8 @@ public record EmployeeContentTaskView(
         String taskInstruction,
         String creationMode,
         int storyboardCount,
+        String planStatus,
+        String planStatusLabel,
         String stage,
         String stageLabel,
         String actionHint,

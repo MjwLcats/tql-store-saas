@@ -18,7 +18,8 @@
         },
         /* 模块配置 */
         "modules" : {
-            "VideoPlayer" : {}
+            "VideoPlayer" : {},
+            "Camera" : {}
         },
         /* 应用发布信息 */
         "distribute" : {
@@ -38,22 +39,29 @@
                     "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
                     "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
                     "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_MEDIA_VIDEO\"/>",
                     "<uses-feature android:name=\"android.hardware.camera\"/>",
                     "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
-                ]
+                ],
+                "abiFilters" : [ "armeabi-v7a", "arm64-v8a", "x86" ]
             },
             /* ios打包配置 */
             "ios" : {
                 "dSYMs" : false,
                 "privacyDescription" : {
-                    "NSLocalNetworkUsageDescription" : "用于连接同一局域网内的同庆楼门店运营调试服务"
+                    "NSLocalNetworkUsageDescription" : "用于连接同一局域网内的同庆楼门店运营调试服务",
+                    "NSPhotoLibraryAddUsageDescription" : "用于将合成后的视频保存到您的相册"
                 },
                 "NSAppTransportSecurity" : {
                     "NSAllowsArbitraryLoads" : true
                 }
             },
             /* SDK配置 */
-            "sdkConfigs" : {},
+            "sdkConfigs" : {
+                "share" : {}
+            },
             "splashscreen" : {
                 "iosStyle" : "common"
             },

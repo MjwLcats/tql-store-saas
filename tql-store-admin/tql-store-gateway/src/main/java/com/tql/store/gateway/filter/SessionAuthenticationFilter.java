@@ -42,7 +42,9 @@ public class SessionAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
         boolean publicContentAsset = HttpMethod.GET.equals(exchange.getRequest().getMethod())
                 && path.startsWith("/api/operation/content-assets/");
-        if (PUBLIC_PATHS.contains(path) || path.startsWith("/api/auth/login") || publicContentAsset) {
+        boolean publicOAuthCallback = path.startsWith("/api/operation/public/oauth/");
+        if (PUBLIC_PATHS.contains(path) || path.startsWith("/api/auth/login")
+                || publicContentAsset || publicOAuthCallback) {
             return chain.filter(removeSpoofedHeaders(exchange));
         }
 

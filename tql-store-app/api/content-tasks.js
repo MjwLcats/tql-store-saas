@@ -12,3 +12,12 @@ export function fetchContentTask(id) {
 		url: `/api/operation/employee/content-tasks/${encodeURIComponent(id)}`
 	})
 }
+
+export function startContentTaskCompose(id, data) {
+	return request({
+		url: `/api/operation/employee/content-tasks/${encodeURIComponent(id)}/compose`,
+		method: 'POST',
+		data,
+		timeout: 30000
+	})
+}

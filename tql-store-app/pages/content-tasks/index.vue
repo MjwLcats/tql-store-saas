@@ -65,7 +65,7 @@
 			>
 				<view class="task-card__top">
 					<text class="activity-name">{{ task.activityName || 'AI短视频' }}</text>
-					<text class="stage-tag" :class="`stage-tag--${tone(task.stage)}`">{{ task.stageLabel }}</text>
+					<text class="stage-tag" :class="`stage-tag--${tone(displayStage(task))}`">{{ statusLabel(task) }}</text>
 				</view>
 				<view class="task-name-line"><text class="task-name">{{ task.planName }}</text><text class="creation-tag">{{ creationLabel(task) }}</text></view>
 				<text class="task-instruction">{{ task.taskInstruction }}</text>
@@ -85,7 +85,7 @@
 
 <script>
 	import { fetchContentTasks } from '@/api/content-tasks.js'
-	import { categoryLabel, contentCreationLabel, formatDeadline, stageTone } from '@/utils/content-task.js'
+	import { categoryLabel, contentCreationLabel, formatDeadline, stageTone, taskDisplayStage, taskStatusLabel } from '@/utils/content-task.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
 
 	export default {
@@ -131,6 +131,8 @@
 			try { await this.load(false) } finally { uni.stopPullDownRefresh() }
 		},
 		methods: {
+			displayStage(task) { return taskDisplayStage(task) },
+			statusLabel(task) { return taskStatusLabel(task) },
 			async load(showLoading = true) {
 				if (showLoading) this.loading = true
 				this.errorMessage = ''

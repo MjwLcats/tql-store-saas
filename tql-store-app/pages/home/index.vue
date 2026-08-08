@@ -35,7 +35,7 @@
 							<view class="task-title-line"><text class="task-title">{{ task.title }}</text><text class="creation-tag">{{ task.creationLabel }}</text></view>
 							<text class="task-meta">{{ task.owner }} · {{ task.time }}</text>
 						</view>
-						<text class="task-tag">{{ task.status }}</text>
+						<text class="task-tag" :class="`task-tag--${task.tone}`">{{ task.status }}</text>
 					</button>
 				</view>
 				<view v-else class="empty-card"><text>暂无真实任务数据</text></view>
@@ -56,7 +56,7 @@
 					<button v-for="task in filteredTasks" :key="task.id" class="task-row task-row--large" hover-class="list-row--pressed" @click="openTask(task)">
 						<view class="task-status" :class="`task-status--${task.tone}`"></view>
 						<view class="task-copy">
-							<view class="task-line"><view class="task-title-line"><text class="task-title">{{ task.title }}</text><text class="creation-tag">{{ task.creationLabel }}</text></view><text class="task-tag">{{ task.status }}</text></view>
+							<view class="task-line"><view class="task-title-line"><text class="task-title">{{ task.title }}</text><text class="creation-tag">{{ task.creationLabel }}</text></view><text class="task-tag" :class="`task-tag--${task.tone}`">{{ task.status }}</text></view>
 							<text class="task-description">{{ task.description }}</text>
 							<text class="task-meta">{{ task.owner }} · 截止 {{ task.time }}</text>
 						</view>
@@ -137,7 +137,7 @@
 				</view>
 
 				<view class="settings-card">
-					<button v-for="item in profileItems" :key="item.label" class="settings-row" hover-class="list-row--pressed" @click="showPending(item.label)">
+					<button v-for="item in profileItems" :key="item.label" class="settings-row" hover-class="list-row--pressed" @click="openProfileItem(item)">
 						<text class="settings-label">{{ item.label }}</text><text class="settings-value">{{ item.value }}</text><image class="settings-arrow" src="/static/icons/nav/right.svg" mode="aspectFit" />
 					</button>
 				</view>
@@ -154,7 +154,8 @@
 	import { logout } from '@/api/auth.js'
 	import { fetchContentTasks } from '@/api/content-tasks.js'
 	import { clearSession, getSession } from '@/utils/auth.js'
-	import { contentCreationLabel, formatDeadline, stageTone } from '@/utils/content-task.js'
+	import { contentCreationLabel, formatDeadline, stageTone, taskDisplayStage, taskStatusLabel } from '@/utils/content-task.js'
+	import { formatChineseDate } from '@/utils/date.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
 
 	export default {
@@ -185,12 +186,13 @@
 					{ label: '账号与安全', value: '' },
 					{ label: '消息设置', value: '已开启' },
 					{ label: '帮助与反馈', value: '' },
+					{ label: '三方平台授权', value: '' },
 					{ label: '关于平台', value: 'v1.0.0' }
 				]
 			}
 		},
 		computed: {
-			currentDate() { return new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date()) },
+			currentDate() { return formatChineseDate(new Date()) },
 			tenantName() { return this.session?.user?.tenantName || '当前组织' },
 			displayName() { return this.session?.user?.displayName || '当前用户' },
 			username() { return this.session?.user?.username || '—' },
@@ -234,12 +236,12 @@
 					this.tasks = records.map(task => ({
 						...task,
 						title: task.planName,
-						status: task.stageLabel,
+						status: taskStatusLabel(task),
 						description: task.actionHint,
 						creationLabel: contentCreationLabel(task),
 						owner: task.activityName,
 						time: formatDeadline(task.deadline),
-						tone: stageTone(task.stage)
+						tone: stageTone(taskDisplayStage(task))
 					}))
 				} catch (error) {
 					this.tasks = []
@@ -257,6 +259,13 @@
 				this.showPending(item.label)
 			},
 			showPending(label) { uni.showToast({ title: `${label}功能建设中`, icon: 'none' }) },
+			openProfileItem(item) {
+				if (item.label === '三方平台授权') {
+					uni.navigateTo({ url: '/pages/platform-authorizations/index' })
+					return
+				}
+				this.showPending(item.label)
+			},
 			handleLogout() {
 				uni.showModal({
 					title: '退出登录',
@@ -369,6 +378,9 @@
 	.creation-tag { flex: 0 0 auto; margin-left: 12rpx; padding: 5rpx 10rpx; border: 1rpx solid #bed4ff; border-radius: 8rpx; background: #f2f7ff; color: #165dff; font-size: 18rpx; line-height: 1; }
 	.task-meta { display: block; margin-top: 10rpx; color: var(--muted); font-size: 21rpx; line-height: 1.3; }
 	.task-tag { flex: 0 0 auto; margin-left: 18rpx; padding: 8rpx 13rpx; border-radius: 999rpx; background: var(--soft); color: #4e5969; font-size: 19rpx; line-height: 1; }
+	.task-tag--warning { background: #fff7e8; color: #d46b08; }
+	.task-tag--danger { background: #fff1f0; color: #cf1322; }
+	.task-tag--success { background: #e8ffea; color: #00a870; }
 
 	.task-summary { padding: 32rpx; border-radius: 28rpx; background: linear-gradient(135deg, #165dff, #4080ff); box-shadow: 0 18rpx 36rpx rgba(22,93,255,.17); color: #fff; }
 	.summary-number { font-size: 64rpx; font-weight: 650; line-height: 1; }

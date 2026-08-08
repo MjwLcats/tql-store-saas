@@ -84,6 +84,15 @@
       }
     },
     {
+      "path": "pages/platform-authorizations/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "三方平台授权",
+        "backgroundColor": "#F7F8FA",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
       "path": "pages/inventory/count",
       "style": {
         "navigationStyle": "custom",

@@ -17,7 +17,7 @@
 		<template v-else-if="task">
 			<view class="hero-card">
 				<view class="hero-top">
-					<text class="stage-tag" :class="`stage-tag--${tone(task.stage)}`">{{ task.stageLabel || '待处理' }}</text>
+					<text class="stage-tag" :class="`stage-tag--${tone(displayStage)}`">{{ displayStatusLabel }}</text>
 				</view>
 				<text class="task-name">{{ task.planName || '未命名任务' }}</text>
 				<text class="deadline" :class="{ 'deadline--danger': isOverdue }">{{ deadlineText }}</text>
@@ -30,7 +30,7 @@
 						:key="step.title"
 						class="step-tab"
 						:class="{ 'step-tab--active': activeStepIndex === index }"
-						@click="activeStepIndex = index"
+						@click="selectWorkbenchStep(index)"
 					>
 						<text class="step-tab__index">{{ index + 1 }}</text>
 						<text class="step-tab__title">{{ step.shortTitle }}</text>
@@ -41,25 +41,22 @@
 			<view v-if="activeStepKey === 'task'" class="panel-card">
 				<view class="section-head">
 					<view>
-						<text class="card-title">确认后管下发内容</text>
+						<text class="card-title">{{ isOriginalTask ? '原创视频拍摄要求' : '分镜拍摄要求' }}</text>
 					</view>
-					<button class="ghost-button ghost-button--mini" @click="copyText(task.taskInstruction, '任务文案')">复制文案</button>
+					<button class="ghost-button ghost-button--mini" @click="copyText(requirementCopyText, '拍摄要求')">复制要求</button>
 				</view>
-				<view class="instruction-box" :class="{ 'instruction-box--collapsed': !showFullInstruction }">
-					<text class="instruction">{{ task.taskInstruction || '后管暂未填写任务文案，请联系负责人补充。' }}</text>
-				</view>
-				<button v-if="hasLongInstruction" class="text-button" @click="showFullInstruction = !showFullInstruction">
-					{{ showFullInstruction ? '收起文案' : '展开完整文案' }}
-				</button>
-				<view class="detail-grid">
-					<view class="detail-item"><text class="detail-label">所属活动</text><text class="detail-value">{{ task.activityName || '—' }}</text></view>
-					<view class="detail-item"><text class="detail-label">创建时间</text><text class="detail-value">{{ createdText }}</text></view>
-					<view class="detail-item"><text class="detail-label">当前状态</text><text class="detail-value">{{ task.stageLabel || '—' }}</text></view>
-					<view class="detail-item"><text class="detail-label">任务截止</text><text class="detail-value">{{ deadlineText }}</text></view>
-				</view>
-				<view class="notice-box">
-					<text class="notice-title">执行提示</text>
-					<text class="notice-copy">{{ actionDescription }}</text>
+				<view class="requirement-list">
+					<view v-for="(section, index) in taskRequirementSections" :key="section.key" class="requirement-section">
+						<view class="requirement-section__head">
+							<text class="requirement-index">{{ index + 1 }}</text>
+							<text class="requirement-title">{{ section.title }}</text>
+						</view>
+						<text class="requirement-copy">{{ section.requirement }}</text>
+						<view v-if="section.voiceover" class="requirement-voiceover">
+							<text class="requirement-label">台词</text>
+							<text class="requirement-voiceover__copy">{{ section.voiceover }}</text>
+						</view>
+					</view>
 				</view>
 			</view>
 
@@ -92,15 +89,22 @@
 						<text class="cover-template-tip">{{ coverTemplateAspect === 'landscape' ? '横版 16:9' : '竖版 9:16' }} · 点击查看大图</text>
 					</view>
 				</view>
-				<view v-if="referenceBgmUrl" class="bgm-reference-card">
-					<view class="bgm-reference-copy">
-						<text class="bgm-reference-title">参考 BGM · {{ referenceBgmName }}</text>
-						<text v-if="referenceBgmCategory" class="bgm-reference-desc">{{ referenceBgmCategory }}</text>
+				<view v-if="referenceBgms.length" class="bgm-reference-card">
+					<text class="bgm-reference-heading">参考 BGM（{{ referenceBgms.length }} 首）</text>
+					<view v-for="(bgm, index) in referenceBgms" :key="`${bgm.url}-${index}`" class="bgm-reference-item">
+						<view class="bgm-reference-copy">
+							<text class="bgm-reference-title">{{ bgm.name }}</text>
+							<text v-if="bgm.category" class="bgm-reference-desc">{{ bgm.category }}</text>
+						</view>
+						<button class="bgm-play-button" @click="toggleReferenceBgm(bgm, index)">
+							<text class="bgm-play-icon">{{ bgmPlaying && activeBgmIndex === index ? 'Ⅱ' : '▶' }}</text>
+							<text>{{ bgmPlaying && activeBgmIndex === index ? '暂停播放' : '播放参考 BGM' }}</text>
+						</button>
 					</view>
-					<button class="bgm-play-button" @click="toggleReferenceBgm">
-						<text class="bgm-play-icon">{{ bgmPlaying ? 'Ⅱ' : '▶' }}</text>
-						<text>{{ bgmPlaying ? '暂停播放' : '播放参考 BGM' }}</text>
-					</button>
+				</view>
+				<view v-if="referenceVoiceStyle" class="voice-reference-card">
+					<text class="voice-reference-label">建议配音</text>
+					<text class="voice-reference-value">{{ referenceVoiceStyle }}</text>
 				</view>
 				<view class="shot-workspace">
 					<view v-if="showSampleSection" class="sample-section">
@@ -111,20 +115,25 @@
 							:class="sampleCardAspectClass(activeShot)"
 							@click="previewSampleVideo(activeShot)"
 						>
-							<image
-								v-if="activeShot.sampleCoverUrl"
-								class="sample-cover"
-								:src="activeShot.sampleCoverUrl"
-								mode="aspectFill"
-							/>
-							<view v-else class="sample-cover sample-cover--empty">
-								<text class="sample-cover-title">样例视频</text>
+							<view class="media-card__viewport">
+								<image
+									v-if="activeShot.sampleCoverUrl"
+									class="sample-cover"
+									:src="activeShot.sampleCoverUrl"
+									mode="aspectFit"
+								/>
+								<view v-else class="sample-cover sample-cover--empty">
+									<text class="sample-cover-title">样例视频</text>
+								</view>
+								<view class="sample-video__mask">
+									<text class="sample-play">▶</text>
+								</view>
+								<text class="sample-aspect-badge">{{ sampleAspectLabel(activeShot) }}</text>
 							</view>
-							<view class="sample-video__mask">
-								<text class="sample-play">▶</text>
+							<view class="media-card__footer">
+								<text class="media-card__title">参考样例视频</text>
+								<text class="media-card__meta">点击播放</text>
 							</view>
-							<text class="sample-aspect-badge">{{ sampleAspectLabel(activeShot) }}</text>
-							<text class="sample-play-copy">点击播放</text>
 						</view>
 						<view v-else class="sample-video-card sample-video-card--empty">
 							<text class="sample-empty-title">暂无样例视频</text>
@@ -147,23 +156,24 @@
 							</view>
 						</view>
 					</view>
-					<view class="shot-preview" @click="chooseShotVideo(activeShotIndex)">
-						<view v-if="activeShotVideo" class="shot-preview__file">
-							<text class="video-name">{{ activeShotVideo.name }}</text>
-							<text class="video-meta">{{ formatVideoMeta(activeShotVideo) }}</text>
+					<view v-if="activeShotVideo" class="shot-preview shot-preview--ready">
+						<view class="uploaded-video-cover" @click="previewShotVideo(activeShotIndex)">
+							<image v-if="activeShotVideo.poster" class="uploaded-video-poster" :src="activeShotVideo.poster" mode="aspectFill" />
+							<view v-else class="uploaded-video-poster uploaded-video-poster--empty"><text>已上传视频</text></view>
+							<view class="uploaded-video-mask"><text class="uploaded-video-play">▶</text></view>
+							<button class="uploaded-video-delete" @click.stop="removeShotVideo(activeShotIndex)">删除</button>
 						</view>
-						<view v-else class="shot-preview__empty">
+						<view class="media-card__footer uploaded-video-meta">
+							<text class="media-card__title video-name">{{ activeShotVideo.name }}</text>
+							<text class="media-card__meta video-meta">{{ formatVideoMeta(activeShotVideo) }}</text>
+						</view>
+					</view>
+					<view v-else class="shot-preview" @click="chooseShotVideo(activeShotIndex)">
+						<view class="shot-preview__empty">
 							<text class="upload-icon">＋</text>
 							<text class="upload-title">{{ isOriginalTask ? '上传视频' : `上传 ${activeShot.title} 视频` }}</text>
 							<text class="upload-copy">支持拍摄或从相册选择，建议 9:16 竖屏</text>
 						</view>
-					</view>
-					<view class="shot-toolbar">
-						<button v-if="!isOriginalTask" class="ghost-button ghost-button--compact" :disabled="activeShotIndex === 0" @click="switchShot(-1)">上一个</button>
-						<button v-if="activeShotVideo" class="ghost-button ghost-button--compact" @click="previewShotVideo(activeShotIndex)">预览</button>
-						<button class="ghost-button ghost-button--compact" @click="chooseShotVideo(activeShotIndex)">{{ activeShotVideo ? '修改视频' : '选择视频' }}</button>
-						<button v-if="activeShotVideo" class="ghost-button ghost-button--compact ghost-button--danger" @click="removeShotVideo(activeShotIndex)">删除</button>
-						<button v-if="!isOriginalTask" class="ghost-button ghost-button--compact" :disabled="activeShotIndex === shotSlots.length - 1" @click="switchShot(1)">下一个</button>
 					</view>
 				</view>
 			</view>
@@ -171,34 +181,60 @@
 			<view v-if="activeStepKey === 'compose'" class="panel-card">
 				<view class="section-head">
 					<view>
-						<text class="card-title">生成成片前检查素材</text>
+						<text class="card-title">确认成片方案</text>
 					</view>
-					<text class="section-count">{{ composeStateText }}</text>
+					<text class="section-count" :class="`section-count--${composeStateTone}`">{{ composeStateText }}</text>
 				</view>
-				<view class="compose-summary">
-					<view class="compose-stat">
-						<text class="compose-number">{{ uploadedCount }}</text>
-						<text class="compose-label">已上传分镜</text>
-					</view>
-					<view class="compose-stat">
-						<text class="compose-number">{{ missingShotCount }}</text>
-						<text class="compose-label">缺少分镜</text>
-					</view>
-					<view class="compose-stat">
-						<text class="compose-number">{{ draft.composeReady ? '是' : '否' }}</text>
-						<text class="compose-label">合成草稿</text>
-					</view>
+				<view v-if="composeBackendMessage" class="compose-status-card" :class="`compose-status-card--${composeStateTone}`">
+					<text class="compose-status-title">{{ composeStateText }}</text>
+					<text class="compose-status-copy">{{ composeBackendMessage }}</text>
 				</view>
-				<view class="check-list">
-					<view v-for="item in composeChecks" :key="item.title" class="check-row">
-						<text class="check-mark" :class="{ 'check-mark--ok': item.ok }">{{ item.ok ? '✓' : '!' }}</text>
-						<view class="check-content">
-							<text class="check-title">{{ item.title }}</text>
-							<text class="check-copy">{{ item.copy }}</text>
+				<view class="composed-video-card">
+					<text class="compose-section-title">合成视频预览</text>
+					<video v-if="composedVideoUrl" class="composed-video-player" :src="composedVideoUrl" :controls="true" :show-progress="true" :show-fullscreen-btn="true" :enable-progress-gesture="true" object-fit="contain" />
+					<view v-else class="composed-video-empty">
+						<text class="composed-video-empty__title">暂无成片视频</text>
+						<text class="composed-video-empty__copy">可先上传本地视频测试预览与下载</text>
+					</view>
+					<button class="upload-test-video-button" @click="chooseComposedVideo">
+						<text>{{ composedVideoUrl ? '更换测试视频' : '上传测试视频' }}</text>
+					</button>
+					<button class="save-video-button" :disabled="savingVideo" @click="saveComposedVideo">
+						<text>{{ savingVideo ? '正在保存…' : '下载视频至相册' }}</text>
+					</button>
+					<text class="save-video-tip">保存后可直接前往发布平台选择该视频</text>
+				</view>
+				<view class="compose-section">
+					<text class="compose-section-title">1. 配音与字幕</text>
+					<view class="compose-config-row"><text>口播方式</text><text class="compose-config-value">分镜口播{{ referenceVoiceStyle ? ` · ${referenceVoiceStyle}` : '' }}</text></view>
+					<view class="subtitle-setting">
+						<text class="subtitle-setting__label">字幕方式</text>
+						<view class="subtitle-mode-tabs">
+							<button class="subtitle-mode-button" :class="{ 'subtitle-mode-button--active': draft.subtitleMode !== 'FIXED' }" @click="setSubtitleMode('AUTO')">自动字幕</button>
+							<button class="subtitle-mode-button" :class="{ 'subtitle-mode-button--active': draft.subtitleMode === 'FIXED' }" @click="setSubtitleMode('FIXED')">固定字幕</button>
 						</view>
 					</view>
+					<view v-if="draft.subtitleMode === 'FIXED'" class="fixed-subtitle-list">
+						<text class="fixed-subtitle-tip">请选择每个分镜的字幕，并确认字幕内容</text>
+						<view v-for="(subtitle, index) in draft.fixedSubtitles" :key="`subtitle-${index}`" class="fixed-subtitle-item">
+							<view class="fixed-subtitle-head">
+								<text class="fixed-subtitle-title">分镜 {{ index + 1 }}</text>
+								<button class="state-choice-button" :class="{ 'state-choice-button--active': subtitle.selected === true }" @click="updateFixedSubtitleSelection(index, subtitle.selected !== true)">
+									<text class="state-choice-icon">{{ subtitle.selected === true ? '✓' : '' }}</text><text>{{ subtitle.selected === true ? '已选择' : '选择字幕' }}</text>
+								</button>
+							</view>
+							<textarea v-model.trim="subtitle.text" class="fixed-subtitle-input" :disabled="subtitle.selected !== true" :placeholder="`请输入分镜 ${index + 1} 字幕`" @blur="saveDraft"></textarea>
+						</view>
+					</view>
+					<view class="compose-config-row"><text>保留素材原声</text><button class="state-choice-button" :class="{ 'state-choice-button--active': draft.originalAudioEnabled === true }" @click="updateComposeSetting('originalAudioEnabled', draft.originalAudioEnabled !== true)"><text>{{ draft.originalAudioEnabled === true ? '已开启' : '已关闭' }}</text></button></view>
 				</view>
-				<text class="helper-text">当前移动端先保存合成草稿；后端开放合成提交接口后，这里可直接切换为真实提交。</text>
+				<view class="compose-section">
+					<text class="compose-section-title">2. 配乐与画面</text>
+					<view class="compose-config-row"><text>背景音乐</text><text class="compose-config-value">{{ referenceBgms[0]?.name || '系统默认配乐' }}</text></view>
+					<view class="compose-config-row"><text>节点转场</text><button class="state-choice-button" :class="{ 'state-choice-button--active': draft.transitionsEnabled !== false }" @click="updateComposeSetting('transitionsEnabled', draft.transitionsEnabled === false)"><text>{{ draft.transitionsEnabled !== false ? '已开启' : '已关闭' }}</text></button></view>
+					<view class="compose-config-row"><text>封面比例</text><text class="compose-config-value">{{ coverTemplateAspect === 'landscape' ? '横版 16:9' : '竖版 9:16' }}</text></view>
+				</view>
+				<text class="helper-text">素材已在上一步校验通过。确认设置后，系统将在后台生成成片，离开页面不会中断。</text>
 			</view>
 
 			<view v-if="activeStepKey === 'publish'" class="panel-card">
@@ -214,16 +250,13 @@
 						v-model.trim="draft.publishTopic"
 						class="publish-topic-input"
 						placeholder="请输入发布标题/话题，例如 #中秋 #月饼"
-						:auto-height="true"
-						@blur="saveDraft"
-					/>
+						@blur="saveDraft"></textarea>
 					<view class="topic-actions">
 						<input
 							v-model.trim="topicDraft"
 							class="topic-input"
 							placeholder="添加话题，如 中秋"
-							@confirm="addTopic"
-						/>
+							@confirm="addTopic" />
 						<button class="topic-add-button" @click="addTopic">添加</button>
 					</view>
 				</view>
@@ -238,9 +271,16 @@
 						{{ platform }}
 					</button>
 				</view>
+				<view class="share-douyin-card">
+					<text class="share-douyin-title">分享成片到抖音</text>
+					<text class="share-douyin-desc">点击后调起系统分享，选择抖音即可把成片视频带入抖音发布页，无需开放平台权限。</text>
+					<button class="share-douyin-button" :disabled="sharingVideo" @click="shareComposedVideo">
+						<text>{{ sharingVideo ? '正在准备视频…' : '分享到抖音' }}</text>
+					</button>
+				</view>
 				<view class="notice-box">
 					<text class="notice-title">发布动作</text>
-					<text class="notice-copy">打开对应平台发布视频，标题可使用后管任务文案，发布完成后回到下一步填写视频链接。</text>
+					<text class="notice-copy">选择后管指定的平台，点击底部“去发布”拉起对应 App。发布完成后返回本页，再进入回传步骤填写视频链接。</text>
 				</view>
 			</view>
 
@@ -249,30 +289,25 @@
 					<view>
 						<text class="card-title">填写已发布视频链接</text>
 					</view>
-					<button class="ghost-button ghost-button--mini" @click="addPublishLink">新增平台</button>
 				</view>
 				<view class="link-list">
 					<view v-for="(link, index) in draft.publishLinks" :key="`${link.platform}-${index}`" class="link-card">
-						<picker :range="platformOptions" :value="platformIndex(link.platform)" @change="changeLinkPlatform(index, $event)">
-							<view class="picker-row">
-								<text class="picker-label">发布平台</text>
-								<text class="picker-value">{{ link.platform }}</text>
-							</view>
-						</picker>
+						<view class="picker-row">
+							<text class="picker-label">发布平台</text>
+							<text class="picker-value">{{ link.platform }}</text>
+						</view>
 						<input
 							v-model.trim="link.url"
 							class="link-input"
 							placeholder="粘贴视频链接，例如 https://..."
-							@blur="saveDraft"
-						/>
-						<button v-if="draft.publishLinks.length > 1" class="ghost-button ghost-button--danger link-remove" @click="removePublishLink(index)">删除</button>
+							@blur="saveDraft" />
 					</view>
 				</view>
 				<text v-if="draft.linksSaved" class="success-copy">已保存回传草稿：{{ draft.updatedAt }}</text>
 			</view>
 
 			<view class="bottom-action">
-				<button class="primary-button bottom-action__button" @click="handlePrimaryAction">{{ primaryActionLabel }}</button>
+				<button class="primary-button bottom-action__button" :disabled="primaryActionDisabled" @click="handlePrimaryAction">{{ primaryActionLabel }}</button>
 			</view>
 		</template>
 
@@ -283,12 +318,23 @@
 <script>
 	import { fetchContentTask } from '@/api/content-tasks.js'
 	import { appConfig } from '@/config/app.js'
-	import { contentCreationType, formatDeadline, stageTone } from '@/utils/content-task.js'
+	import { contentCreationType, formatDeadline, stageTone, taskDisplayStage, taskStatusLabel } from '@/utils/content-task.js'
 	import AppTabBar from '@/components/app-tab-bar/app-tab-bar.vue'
+
+	// #ifdef APP-PLUS
+	import { shareWithSystem } from '@/uni_modules/tql-share'
+	// #endif
 
 	const DEFAULT_DRAFT = Object.freeze({
 		videos: [],
+		materialValidated: false,
 		composeReady: false,
+		composedVideoUrl: '',
+		captionsEnabled: true,
+		subtitleMode: 'AUTO',
+		fixedSubtitles: [],
+		transitionsEnabled: true,
+		originalAudioEnabled: false,
 		publishLinks: [{ platform: '抖音', url: '' }],
 		publishTopic: '',
 		selectedPlatforms: [],
@@ -309,22 +355,42 @@
 				activeShotIndex: 0,
 				showFullInstruction: false,
 				bgmPlaying: false,
+				activeBgmIndex: -1,
+				composing: false,
+				savingVideo: false,
+				sharingVideo: false,
+				pendingShareTempFile: '',
+				composePollTimer: null,
 				topicDraft: '',
 				draft: { ...DEFAULT_DRAFT, videos: [], publishLinks: [{ platform: '抖音', url: '' }] },
-				platformOptions: ['抖音', '视频号', '小红书', '快手']
+				supportedPlatformOptions: ['抖音', '视频号', '小红书', '快手']
 			}
 		},
 		computed: {
+			displayStage() { return taskDisplayStage(this.task || {}) },
+			displayStatusLabel() { return taskStatusLabel(this.task || {}) },
 			taskDraftKey() { return `content-task-draft:${this.id}` },
 			deadlineText() { return this.task ? formatDeadline(this.task.deadline) : '' },
 			isOverdue() { return this.task?.deadline && new Date(this.task.deadline).getTime() < Date.now() },
 			createdText() { return this.task?.createdTime ? new Date(this.task.createdTime).toLocaleString('zh-CN', { hour12: false }) : '—' },
-			hasLongInstruction() { return (this.task?.taskInstruction || '').length > 140 },
+			taskRequirementSections() {
+				return this.shotSlots.map((shot, index) => ({
+					key: shot.key,
+					title: this.isOriginalTask ? '拍摄要求' : `分镜 ${index + 1}`,
+					requirement: this.stripStoryboardMetadata(shot.requirement) || '请按后管要求完成本段视频拍摄。',
+					voiceover: this.isOriginalTask ? '' : this.stripStoryboardMetadata(shot.voiceover)
+				}))
+			},
+			requirementCopyText() {
+				return this.taskRequirementSections
+					.map(section => `${section.title}\n${section.requirement}${section.voiceover ? `\n台词：${section.voiceover}` : ''}`)
+					.join('\n\n')
+			},
 			workbenchSteps() {
 				const steps = [
 					{ key: 'task', title: '任务信息', shortTitle: '任务', desc: '确认计划名称、任务文案、截止时间和状态' },
 					{ key: 'upload', title: '视频上传', shortTitle: '上传', desc: '按分镜样例或原创拍摄要求上传竖屏视频' },
-					{ key: 'compose', title: '视频合成', shortTitle: '合成', desc: '检查素材并生成合成预览' },
+					{ key: 'compose', title: '成片设置', shortTitle: '成片', desc: '确认分镜、口播字幕、配乐和转场方案' },
 					{ key: 'publish', title: '视频发布', shortTitle: '发布', desc: '复制话题，发布到指定平台' },
 					{ key: 'callback', title: '回传链接', shortTitle: '回传', desc: '填写发布链接，完成移动端闭环' }
 				]
@@ -351,18 +417,23 @@
 				const matched = source.match(/视频封面比例[:：]\s*([^\n]+)/)
 				return this.normalizeSampleAspect(matched ? matched[1] : '') || 'portrait'
 			},
-			referenceBgmUrl() {
+			referenceBgms() {
 				const source = this.task?.taskInstruction || ''
-				const matched = source.match(/参考BGM地址[:：]\s*([^\s\n]+)/)
-				return this.resolveAssetUrl(matched ? matched[1].trim() : '')
+				const items = [...source.matchAll(/参考BGM \d+[:：]\s*([^\n]+)/g)].map(match => {
+					const [name, url, category] = match[1].split('｜')
+					return { name: name?.trim() || '计划参考配乐', url: this.resolveAssetUrl(url?.trim() || ''), category: category?.trim() || '' }
+				}).filter(item => item.url)
+				if (items.length) return items
+				const url = source.match(/参考BGM地址[:：]\s*([^\s\n]+)/)?.[1]?.trim() || ''
+				return url ? [{
+					name: source.match(/参考BGM名称[:：]\s*([^\n]+)/)?.[1]?.trim() || '计划参考配乐',
+					url: this.resolveAssetUrl(url),
+					category: source.match(/参考BGM分类[:：]\s*([^\n]+)/)?.[1]?.trim() || ''
+				}] : []
 			},
-			referenceBgmName() {
+			referenceVoiceStyle() {
 				const source = this.task?.taskInstruction || ''
-				return source.match(/参考BGM名称[:：]\s*([^\n]+)/)?.[1]?.trim() || '计划参考配乐'
-			},
-			referenceBgmCategory() {
-				const source = this.task?.taskInstruction || ''
-				return source.match(/参考BGM分类[:：]\s*([^\n]+)/)?.[1]?.trim() || ''
+				return source.match(/建议配音[:：]\s*([^\n]+)/)?.[1]?.trim() || ''
 			},
 			originalRequirementText() {
 				const source = this.task?.taskInstruction || ''
@@ -415,7 +486,10 @@
 						sampleVideoUrl: this.resolveAssetUrl(apiItem.sampleVideoUrl || apiItem.exampleVideoUrl || parsedItem.sampleVideoUrl || ''),
 						sampleCoverUrl: this.resolveAssetUrl(apiItem.sampleCoverUrl || apiItem.exampleCoverUrl || parsedItem.sampleCoverUrl || ''),
 						sampleAspect: this.normalizeSampleAspect(apiItem.sampleAspect || apiItem.aspect || parsedItem.sampleAspect || ''),
-						durationText: apiItem.durationText || parsedItem.durationText || '约8s'
+						durationText: apiItem.durationText || apiItem.durationRequirement || parsedItem.durationText || '约8s',
+						minDuration: apiItem.minDuration ?? apiItem.minDurationSeconds ?? apiItem.durationMin,
+						maxDuration: apiItem.maxDuration ?? apiItem.maxDurationSeconds ?? apiItem.durationMax,
+						durationSeconds: apiItem.durationSeconds ?? apiItem.duration
 					}
 				})
 			},
@@ -426,16 +500,22 @@
 					'按任务文案展示核心卖点或服务动作，声音清晰、光线充足。',
 					'结尾补充门店氛围、成品特写或顾客体验，便于合成完整短视频。'
 				]
-				return Array.from({ length: this.storyboardCount }, (_, index) => ({
-					key: `shot-${index + 1}`,
-					title: this.isOriginalTask ? '视频' : `分镜 ${index + 1}`,
-					requirement: items[index]?.requirement || fallback[index % fallback.length],
-					voiceover: items[index]?.voiceover || '根据后管任务文案生成/朗读当前分镜配音，保持自然语速。',
-					sampleVideoUrl: items[index]?.sampleVideoUrl || '',
-					sampleCoverUrl: items[index]?.sampleCoverUrl || '',
-					sampleAspect: items[index]?.sampleAspect || 'portrait',
-					durationText: items[index]?.durationText || '约8s'
-				}))
+				return Array.from({ length: this.storyboardCount }, (_, index) => {
+					const item = items[index] || {}
+					const durationRule = this.resolveDurationRule(item)
+					return {
+						key: `shot-${index + 1}`,
+						title: this.isOriginalTask ? '视频' : `分镜 ${index + 1}`,
+						requirement: item.requirement || fallback[index % fallback.length],
+						voiceover: item.voiceover || '根据后管任务文案生成/朗读当前分镜配音，保持自然语速。',
+						sampleVideoUrl: item.sampleVideoUrl || '',
+						sampleCoverUrl: item.sampleCoverUrl || '',
+						sampleAspect: item.sampleAspect || 'portrait',
+						durationText: durationRule.label,
+						minDuration: durationRule.min,
+						maxDuration: durationRule.max
+					}
+				})
 			},
 			activeShot() {
 				return this.shotSlots[this.activeShotIndex] || this.shotSlots[0]
@@ -485,10 +565,28 @@
 				return '按当前步骤完成后，任务会进入下一阶段。'
 			},
 			composeStateText() {
-				if (this.draft.composeReady) return '已生成草稿'
+				if (this.task?.stage === 'PROCESSING') return '后台合成中'
+				if (this.task?.stage === 'PENDING_REVIEW') return '等待审核'
+				if (this.draft.composeReady) return '方案已确认'
 				if (this.uploadedCount === 0) return '待上传'
-				if (this.missingShotCount > 0) return '可预合成'
-				return '可合成'
+				if (this.missingShotCount > 0) return '素材未齐'
+				return '待确认'
+			},
+			composeStateTone() {
+				if (this.task?.stage === 'PROCESSING') return 'processing'
+				if (this.task?.stage === 'PENDING_REVIEW' || this.draft.composeReady) return 'success'
+				if (this.missingShotCount > 0) return 'warning'
+				return 'ready'
+			},
+			composeBackendMessage() {
+				if (this.composing) return '视频合成预计3分钟，请耐心等待！'
+				if (this.task?.stage === 'PROCESSING') return '系统正在后台拼接分镜、生成字幕并混合配乐，请稍后返回查看。'
+				if (this.task?.stage === 'PENDING_REVIEW') return '成片已生成并进入审核，审核通过后即可前往发布。'
+				return ''
+			},
+			composedVideoUrl() {
+				const url = this.task?.composedVideoUrl || this.task?.outputVideoUrl || this.task?.resultVideoUrl || this.draft.composedVideoUrl || ''
+				return this.resolveAssetUrl(url)
 			},
 			composeChecks() {
 				return [
@@ -506,12 +604,41 @@
 			publishTopic() {
 				return this.draft.publishTopic || this.defaultPublishTopic
 			},
+			platformOptions() {
+				const direct = this.task?.platforms || this.task?.publishPlatforms || []
+				const source = Array.isArray(direct) && direct.length
+					? direct
+					: ((this.task?.taskInstruction || '').match(/发布平台[:：]\s*([^\n]+)/)?.[1] || '').split(/[、,，|｜/\s]+/)
+				const aliases = {
+					DOUYIN: '抖音', DOU_YIN: '抖音', WECHAT_CHANNELS: '视频号', WECHAT_VIDEO: '视频号',
+					XIAOHONGSHU: '小红书', RED: '小红书', KUAISHOU: '快手'
+				}
+				const normalized = source
+					.map(item => aliases[String(item || '').trim().toUpperCase()] || String(item || '').trim())
+					.filter(item => this.supportedPlatformOptions.includes(item))
+				return [...new Set(normalized.length ? normalized : ['抖音'])]
+			},
+			selectedPublishPlatform() {
+				return this.platformOptions.includes(this.draft.lastPlatform) ? this.draft.lastPlatform : this.platformOptions[0]
+			},
 			primaryActionLabel() {
 				if (this.activeStepKey === 'task') return '进入视频上传'
-				if (this.activeStepKey === 'upload') return this.uploadedCount > 0 ? (this.isOriginalTask ? '去发布视频' : '检查并合成') : '上传第一个视频'
-				if (this.activeStepKey === 'compose') return this.draft.composeReady ? '去发布视频' : '生成合成预览'
-				if (this.activeStepKey === 'publish') return '填写回传链接'
+				if (this.activeStepKey === 'upload') {
+					if (!this.activeShotVideo) return `上传${this.activeShot?.title || '当前分镜'}视频`
+					if (this.activeShotIndex < this.shotSlots.length - 1) return '下一个分镜'
+					return this.isOriginalTask ? '去发布视频' : '合成视频'
+				}
+				if (this.activeStepKey === 'compose') {
+					if (this.composing) return '视频合成中'
+					if (this.task?.stage === 'PROCESSING') return '后台合成中'
+					if (this.task?.stage === 'PENDING_REVIEW') return '等待审核'
+					return '去发布视频'
+				}
+				if (this.activeStepKey === 'publish') return '去发布'
 				return '保存回传信息'
+			},
+			primaryActionDisabled() {
+				return this.activeStepKey === 'compose' && (this.composing || ['PROCESSING', 'PENDING_REVIEW'].includes(this.task?.stage))
 			}
 		},
 		onLoad(options) {
@@ -519,14 +646,139 @@
 			this.load()
 		},
 		onShow() {
-			if (this.id) this.loadDraft()
+			if (this.id) {
+				this.loadDraft()
+				if (this.task?.stage === 'PROCESSING') this.refreshComposeState()
+			}
 		},
 		onUnload() {
+			this.stopComposePolling()
 			this.destroyReferenceBgm()
 		},
 		methods: {
+			saveVideoFileToAlbum(filePath) {
+				return new Promise((resolve, reject) => {
+					const nativePlus = typeof plus !== 'undefined' ? plus : null
+					if (nativePlus?.gallery?.save) {
+						let nativePath = filePath
+						try {
+							if (!/^file:\/\//i.test(nativePath) && nativePlus.io?.convertLocalFileSystemURL) {
+								nativePath = nativePlus.io.convertLocalFileSystemURL(nativePath)
+							}
+						} catch (error) {
+							reject(error)
+							return
+						}
+						nativePlus.gallery.save(nativePath, resolve, reject)
+						return
+					}
+					uni.saveVideoToPhotosAlbum({
+						filePath,
+						success: resolve,
+						fail: reject
+					})
+				})
+			},
+			chooseComposedVideo() {
+				uni.chooseVideo({
+					count: 1,
+					compressed: false,
+					sourceType: ['album'],
+					success: (result) => {
+						const localPath = result.tempFilePath || result.tempFile || ''
+						if (!localPath) {
+							uni.showToast({ title: '未获取到视频文件', icon: 'none' })
+							return
+						}
+						this.draft = { ...this.draft, composedVideoUrl: localPath, composeReady: true }
+						this.saveDraft()
+						uni.showToast({ title: '测试视频已添加', icon: 'success' })
+					},
+					fail: (error) => {
+						if (!/cancel/i.test(String(error?.errMsg || ''))) uni.showToast({ title: '视频选择失败', icon: 'none' })
+					}
+				})
+			},
+			async saveComposedVideo() {
+				if (this.savingVideo) return
+				if (!this.composedVideoUrl) {
+					uni.showToast({ title: '暂无可下载的成片视频', icon: 'none' })
+					return
+				}
+				this.savingVideo = true
+				uni.showLoading({ title: '正在下载视频', mask: true })
+				let temporaryFilePath = this.composedVideoUrl
+				try {
+					if (/^https?:\/\//i.test(this.composedVideoUrl)) {
+						const downloadResult = await new Promise((resolve, reject) => {
+							uni.downloadFile({
+								url: this.composedVideoUrl,
+								success: (result) => result.statusCode >= 200 && result.statusCode < 300
+									? resolve(result)
+									: reject(new Error(`视频下载失败（${result.statusCode}）`)),
+								fail: reject
+							})
+						})
+						temporaryFilePath = downloadResult.tempFilePath
+					}
+					await this.saveVideoFileToAlbum(temporaryFilePath)
+					uni.showToast({ title: '已保存到相册', icon: 'success' })
+				} catch (error) {
+					const message = String(error?.errMsg || error?.message || '')
+					const denied = /auth deny|authorize|permission|权限/i.test(message)
+					uni.showModal({
+						title: denied ? '需要相册权限' : '保存失败',
+						content: denied ? '请在系统设置中允许访问照片或相册后重试。' : (message || '视频暂时无法保存，请稍后重试。'),
+						showCancel: false
+					})
+				} finally {
+					uni.hideLoading()
+					this.savingVideo = false
+				}
+			},
+			async refreshComposeState() {
+				try {
+					this.task = await fetchContentTask(this.id)
+					if (this.composedVideoUrl) {
+						this.draft = { ...this.draft, composeReady: true, composedVideoUrl: this.composedVideoUrl }
+						this.saveDraft()
+						this.stopComposePolling()
+					} else if (this.task?.stage === 'PROCESSING') {
+						this.scheduleComposePolling()
+					}
+				} catch (_) {
+					this.scheduleComposePolling()
+				}
+			},
+			scheduleComposePolling() {
+				this.stopComposePolling()
+				this.composePollTimer = setTimeout(() => this.refreshComposeState(), 10000)
+			},
+			stopComposePolling() {
+				if (this.composePollTimer) clearTimeout(this.composePollTimer)
+				this.composePollTimer = null
+			},
+			selectWorkbenchStep(index) {
+				const targetStep = this.workbenchSteps[index]
+				if (!targetStep) return
+				if (targetStep.key === 'compose' && !this.draft.materialValidated && !['PROCESSING', 'PENDING_REVIEW'].includes(this.task?.stage)) {
+					uni.showToast({ title: '请先在上传页检查并合成', icon: 'none' })
+					return
+				}
+				this.activeStepIndex = index
+			},
+			stripStoryboardMetadata(value) {
+				return String(value || '')
+					.replace(/(?:样例|示例)(?:视频|封面)(?:链接|地址)?\s*[:：]?\s*(?:https?:\/\/|\/api\/)[^\s；;|｜，,]+/gi, '')
+					.replace(/https?:\/\/[^\s；;|｜，,]+/gi, '')
+					.replace(/(?:样例|示例)(?:比例|画幅)\s*[:：]?\s*[^；;|｜，,。]+/gi, '')
+					.replace(/\s*[；;|｜]\s*([；;|｜]\s*)+/g, '；')
+					.replace(/^[\s；;|｜，,]+|[\s；;|｜，,]+$/g, '')
+					.trim()
+			},
 			resolveAssetUrl(url) {
 				if (!url) return ''
+				if (/^(?:_doc|_www|file:|blob:|content:|wxfile:|ttfile:)/i.test(String(url))) return url
 				if (/^https?:\/\//i.test(url)) return url
 				return `${appConfig.apiBaseUrl.replace(/\/$/, '')}/${String(url).replace(/^\//, '')}`
 			},
@@ -534,11 +786,13 @@
 				if (!this.coverTemplateUrl) return
 				uni.previewImage({ current: this.coverTemplateUrl, urls: [this.coverTemplateUrl] })
 			},
-			toggleReferenceBgm() {
-				if (!this.referenceBgmUrl) return
+			toggleReferenceBgm(bgm, index) {
+				if (!bgm?.url) return
+				if (this._bgmAudioContext && this.activeBgmIndex !== index) this.destroyReferenceBgm()
 				if (!this._bgmAudioContext) {
 					const audioContext = uni.createInnerAudioContext()
-					audioContext.src = this.referenceBgmUrl
+					audioContext.src = bgm.url
+					this.activeBgmIndex = index
 					audioContext.onPlay(() => { this.bgmPlaying = true })
 					audioContext.onPause(() => { this.bgmPlaying = false })
 					audioContext.onStop(() => { this.bgmPlaying = false })
@@ -556,6 +810,7 @@
 				if (this._bgmAudioContext) this._bgmAudioContext.destroy()
 				this._bgmAudioContext = null
 				this.bgmPlaying = false
+				this.activeBgmIndex = -1
 			},
 			parseStoryboardText(rawText) {
 				const text = String(rawText || '').replace(/^\d+[.．、]\s*/, '').trim()
@@ -578,6 +833,46 @@
 					sampleAspect: this.normalizeSampleAspect(pick('样例比例') || pick('视频比例')),
 					durationText: durationMatch ? durationMatch[1].trim() : ''
 				}
+			},
+			resolveDurationRule(item = {}) {
+				const configuredMin = Number(item.minDuration)
+				const configuredMax = Number(item.maxDuration)
+				const configuredExact = Number(item.durationSeconds)
+				if (configuredMin > 0 || configuredMax > 0) {
+					const min = configuredMin > 0 ? configuredMin : configuredMax
+					const max = configuredMax > 0 ? configuredMax : configuredMin
+					return { min, max, label: min === max ? `${min}秒` : `${min}-${max}秒` }
+				}
+				if (configuredExact > 0) {
+					return { min: Math.max(0.1, configuredExact - 0.5), max: configuredExact + 0.5, label: `${configuredExact}秒` }
+				}
+				const text = String(item.durationText || '').trim()
+				const range = text.match(/(\d+(?:\.\d+)?)\s*(?:秒|s)?\s*[-~～至到]\s*(\d+(?:\.\d+)?)/i)
+				if (range) {
+					const min = Number(range[1])
+					const max = Number(range[2])
+					return { min: Math.min(min, max), max: Math.max(min, max), label: text || `${min}-${max}秒` }
+				}
+				const exact = text.match(/(\d+(?:\.\d+)?)/)
+				if (exact) {
+					const seconds = Number(exact[1])
+					const tolerance = /约|左右|大约/.test(text) ? 1 : 0.5
+					return { min: Math.max(0.1, seconds - tolerance), max: seconds + tolerance, label: text || `${seconds}秒` }
+				}
+				return { min: 0, max: 90, label: text || '以后台设置为准' }
+			},
+			validateVideoDuration(video, shot) {
+				const duration = Number(video?.duration || 0)
+				if (!(duration > 0)) return { valid: false, message: '无法读取视频时长，请重新选择视频。' }
+				const min = Number(shot?.minDuration || 0)
+				const max = Number(shot?.maxDuration || 0)
+				if ((min > 0 && duration < min) || (max > 0 && duration > max)) {
+					return {
+						valid: false,
+						message: `${shot?.title || '当前分镜'}要求${shot?.durationText || '符合后台时长设置'}，所选视频为${duration.toFixed(1)}秒。`
+					}
+				}
+				return { valid: true, message: '' }
 			},
 			normalizeSampleAspect(value) {
 				const text = String(value || '').toLowerCase()
@@ -620,19 +915,19 @@
 				if (!this.id) return
 				const cached = uni.getStorageSync(this.taskDraftKey)
 				if (!cached) {
-					this.draft = { ...DEFAULT_DRAFT, videos: [], publishTopic: this.defaultPublishTopic, selectedPlatforms: ['抖音'], publishLinks: [{ platform: '抖音', url: '' }] }
+					this.draft = { ...DEFAULT_DRAFT, videos: [], publishTopic: this.defaultPublishTopic, selectedPlatforms: [...this.platformOptions], lastPlatform: this.platformOptions[0], publishLinks: this.platformOptions.map(platform => ({ platform, url: '' })) }
 					return
 				}
-				const selectedPlatforms = Array.isArray(cached.selectedPlatforms) && cached.selectedPlatforms.length
-					? cached.selectedPlatforms
-					: (cached.lastPlatform ? [cached.lastPlatform] : ['抖音'])
+				const selectedPlatforms = [...this.platformOptions]
+				const cachedLinks = Array.isArray(cached.publishLinks) ? cached.publishLinks : []
 				this.draft = {
 					...DEFAULT_DRAFT,
 					...cached,
 					videos: Array.isArray(cached.videos) ? cached.videos.slice(0, this.storyboardCount) : [],
 					publishTopic: cached.publishTopic || this.defaultPublishTopic,
 					selectedPlatforms,
-					publishLinks: Array.isArray(cached.publishLinks) && cached.publishLinks.length ? cached.publishLinks : [{ platform: '抖音', url: '' }]
+					lastPlatform: this.platformOptions.includes(cached.lastPlatform) ? cached.lastPlatform : this.platformOptions[0],
+					publishLinks: this.platformOptions.map(platform => cachedLinks.find(link => link.platform === platform) || { platform, url: '' })
 				}
 			},
 			saveDraft() {
@@ -646,39 +941,56 @@
 				}
 				if (this.activeStepKey === 'upload') {
 					if (!this.activeShotVideo) this.chooseShotVideo(this.activeShotIndex)
-					else this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === (this.isOriginalTask ? 'publish' : 'compose'))
+					else if (this.activeShotIndex < this.shotSlots.length - 1) this.goToNextShot()
+					else if (this.isOriginalTask) this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'publish')
+					else this.checkMaterialsAndEnterCompose()
 					return
 				}
 				if (this.activeStepKey === 'compose') {
-					if (!this.draft.composeReady) this.prepareCompose()
-					else this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'publish')
+					this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'publish')
 					return
 				}
 				if (this.activeStepKey === 'publish') {
-					this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'callback')
+					this.launchPublishPlatform(this.selectedPublishPlatform)
 					return
 				}
 				this.savePublishLinks()
 			},
 			chooseShotVideo(index) {
+				const shot = this.shotSlots[index]
 				uni.chooseVideo({
 					count: 1,
 					compressed: true,
-					maxDuration: 90,
+					maxDuration: Math.min(90, Math.max(1, Math.ceil(shot?.maxDuration || 90))),
 					sourceType: ['album', 'camera'],
 					success: (res) => {
-						const videos = [...this.draft.videos]
-						videos[index] = {
+						const selectedVideo = {
 							name: `分镜${index + 1}视频`,
 							path: res.tempFilePath,
+							poster: res.thumbTempFilePath || '',
 							duration: Number(res.duration || 0),
-							size: Number(res.size || 0)
+							size: Number(res.size || 0),
+							width: Number(res.width || 0),
+							height: Number(res.height || 0)
 						}
-						this.draft = { ...this.draft, videos, composeReady: false }
+						const validation = this.validateVideoDuration(selectedVideo, shot)
+						if (!validation.valid) {
+							uni.showModal({ title: '视频时长不符合要求', content: validation.message, showCancel: false })
+							return
+						}
+						const videos = [...this.draft.videos]
+						videos[index] = selectedVideo
+						this.draft = { ...this.draft, videos, materialValidated: false, composeReady: false }
 						this.saveDraft()
 						uni.showToast({ title: '视频已保存到草稿', icon: 'success' })
-						if (index < this.shotSlots.length - 1 && !videos[index + 1]) this.activeShotIndex = index + 1
 					}
+				})
+			},
+			goToNextShot() {
+				if (this.activeShotIndex >= this.shotSlots.length - 1) return
+				this.activeShotIndex += 1
+				this.$nextTick(() => {
+					uni.pageScrollTo({ selector: '.shot-switcher', duration: 220 })
 				})
 			},
 			firstUnfinishedShotIndex() {
@@ -695,11 +1007,11 @@
 			previewShotVideo(index) {
 				const video = this.draft.videos[index]
 				if (!video?.path) return
-				if (uni.previewMedia) {
-					uni.previewMedia({ sources: [{ url: video.path, type: 'video' }] })
-					return
-				}
-				uni.showToast({ title: '当前端暂不支持预览', icon: 'none' })
+				const src = encodeURIComponent(video.path)
+				const poster = encodeURIComponent(video.poster || '')
+				const title = encodeURIComponent(video.name || `分镜${index + 1}视频`)
+				const aspect = video.width > video.height ? 'landscape' : 'portrait'
+				uni.navigateTo({ url: `/pages/content-tasks/player?src=${src}&poster=${poster}&title=${title}&aspect=${aspect}` })
 			},
 			previewSampleVideo(shot) {
 				if (!shot?.sampleVideoUrl) {
@@ -715,18 +1027,49 @@
 			removeShotVideo(index) {
 				const videos = [...this.draft.videos]
 				videos[index] = null
-				this.draft = { ...this.draft, videos, composeReady: false }
+				this.draft = { ...this.draft, videos, materialValidated: false, composeReady: false }
 				this.saveDraft()
 			},
-			prepareCompose() {
-				if (this.uploadedCount === 0) {
-					uni.showToast({ title: '请先上传视频素材', icon: 'none' })
+			checkMaterialsAndEnterCompose() {
+				if (this.missingShotCount > 0) {
+					this.activeShotIndex = this.firstUnfinishedShotIndex()
+					uni.showToast({ title: `还缺少 ${this.missingShotCount} 个分镜素材`, icon: 'none' })
 					return
 				}
-				this.draft = { ...this.draft, composeReady: true }
+				const invalidIndex = this.shotSlots.findIndex((shot, index) => !this.validateVideoDuration(this.draft.videos[index], shot).valid)
+				if (invalidIndex >= 0) {
+					this.activeShotIndex = invalidIndex
+					const validation = this.validateVideoDuration(this.draft.videos[invalidIndex], this.shotSlots[invalidIndex])
+					uni.showModal({ title: '视频时长不符合要求', content: validation.message, showCancel: false })
+					return
+				}
+				this.draft = { ...this.draft, materialValidated: true, composeReady: false }
 				this.saveDraft()
-				uni.showToast({ title: '合成草稿已生成', icon: 'success' })
-				this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'publish')
+				this.activeStepIndex = this.workbenchSteps.findIndex(step => step.key === 'compose')
+				uni.showToast({ title: '素材校验通过', icon: 'success' })
+			},
+			updateComposeSetting(key, value) {
+				this.draft = { ...this.draft, [key]: value, composeReady: false, composedVideoUrl: '' }
+				this.saveDraft()
+			},
+			ensureFixedSubtitles() {
+				const current = Array.isArray(this.draft.fixedSubtitles) ? this.draft.fixedSubtitles : []
+				const fixedSubtitles = this.shotSlots.map((shot, index) => ({
+					selected: current[index]?.selected === true,
+					text: current[index]?.text ?? shot.voiceover ?? ''
+				}))
+				this.draft = { ...this.draft, fixedSubtitles }
+			},
+			setSubtitleMode(mode) {
+				if (mode === 'FIXED') this.ensureFixedSubtitles()
+				this.draft = { ...this.draft, subtitleMode: mode === 'FIXED' ? 'FIXED' : 'AUTO', composeReady: false, composedVideoUrl: '' }
+				this.saveDraft()
+			},
+			updateFixedSubtitleSelection(index, selected) {
+				this.ensureFixedSubtitles()
+				const fixedSubtitles = this.draft.fixedSubtitles.map((item, itemIndex) => itemIndex === index ? { ...item, selected } : item)
+				this.draft = { ...this.draft, fixedSubtitles, composeReady: false, composedVideoUrl: '' }
+				this.saveDraft()
 			},
 			copyText(value, label) {
 				if (!value) {
@@ -750,43 +1093,151 @@
 				this.saveDraft()
 			},
 			isPlatformSelected(platform) {
-				return Array.isArray(this.draft.selectedPlatforms) && this.draft.selectedPlatforms.includes(platform)
+				return this.selectedPublishPlatform === platform
 			},
 			togglePlatform(platform) {
-				const selected = Array.isArray(this.draft.selectedPlatforms) ? [...this.draft.selectedPlatforms] : []
-				const exists = selected.includes(platform)
-				const next = exists ? selected.filter((item) => item !== platform) : [...selected, platform]
-				const safeNext = next.length ? next : [platform]
-				const publishLinks = safeNext.map((item) => {
-					const existed = this.draft.publishLinks.find((link) => link.platform === item)
-					return existed || { platform: item, url: '' }
+				if (!this.platformOptions.includes(platform)) return
+				this.draft = { ...this.draft, selectedPlatforms: [...this.platformOptions], lastPlatform: platform }
+				this.saveDraft()
+			},
+			launchPublishPlatform(platform) {
+				const applications = {
+					抖音: { pname: 'com.ss.android.ugc.aweme', action: 'snssdk1128://' },
+					视频号: { pname: 'com.tencent.mm', action: 'weixin://' },
+					小红书: { pname: 'com.xingin.xhs', action: 'xhsdiscover://' },
+					快手: { pname: 'com.smile.gifmaker', action: 'kwai://' }
+				}
+				const application = applications[platform]
+				if (!application) {
+					uni.showToast({ title: '暂不支持该发布平台', icon: 'none' })
+					return
+				}
+				if (typeof plus === 'undefined' || !plus.runtime?.launchApplication) {
+					uni.showToast({ title: '请在手机 App 中使用去发布', icon: 'none' })
+					return
+				}
+				plus.runtime.launchApplication(application, () => {}, () => {
+					uni.showModal({
+						title: `未能打开${platform}`,
+						content: `请确认手机已安装${platform}，安装后再试。`,
+						showCancel: false
+					})
 				})
-				this.draft = { ...this.draft, selectedPlatforms: safeNext, lastPlatform: platform, publishLinks }
-				this.saveDraft()
 			},
-			addPublishLink() {
-				this.draft = {
-					...this.draft,
-					publishLinks: [...this.draft.publishLinks, { platform: this.platformOptions[0], url: '' }]
+			normalizeShareFilePath(filePath) {
+				if (/^file:\/\//i.test(filePath)) {
+					return filePath.replace(/^file:\/\//i, '')
 				}
-				this.saveDraft()
-			},
-			removePublishLink(index) {
-				this.draft = {
-					...this.draft,
-					publishLinks: this.draft.publishLinks.filter((_, itemIndex) => itemIndex !== index)
+				if (typeof plus !== 'undefined' && plus.io?.convertLocalFileSystemURL) {
+					try {
+						return plus.io.convertLocalFileSystemURL(filePath)
+					} catch (error) {
+						return filePath
+					}
 				}
-				this.saveDraft()
+				return filePath
 			},
-			changeLinkPlatform(index, event) {
-				const platform = this.platformOptions[Number(event.detail.value)] || this.platformOptions[0]
-				const publishLinks = this.draft.publishLinks.map((item, itemIndex) => itemIndex === index ? { ...item, platform } : item)
-				this.draft = { ...this.draft, publishLinks }
-				this.saveDraft()
+			ensureVideoExtension(filePath) {
+				return new Promise((resolve, reject) => {
+					if (/\.(mp4|mov|m4v|avi|3gp|webm)$/i.test(filePath)) {
+						resolve(filePath)
+						return
+					}
+					if (typeof plus === 'undefined' || !plus.io?.resolveLocalFileSystemURL) {
+						resolve(filePath)
+						return
+					}
+					try {
+						const dirPath = plus.io.convertLocalFileSystemURL('_doc/')
+						const targetName = `tql_share_${Date.now()}.mp4`
+						plus.io.resolveLocalFileSystemURL(dirPath, (dirEntry) => {
+							plus.io.resolveLocalFileSystemURL(filePath, (sourceEntry) => {
+								sourceEntry.copyTo(dirEntry, targetName, (newEntry) => {
+									const copiedPath = this.normalizeShareFilePath(newEntry.toLocalURL())
+									this.pendingShareTempFile = copiedPath
+									resolve(copiedPath)
+								}, reject)
+							}, reject)
+						}, reject)
+					} catch (error) {
+						resolve(filePath)
+					}
+				})
 			},
-			platformIndex(platform) {
-				const index = this.platformOptions.indexOf(platform)
-				return index >= 0 ? index : 0
+			removeShareTempFile() {
+				const tempPath = this.pendingShareTempFile
+				this.pendingShareTempFile = ''
+				if (!tempPath || typeof plus === 'undefined' || !plus.io?.resolveLocalFileSystemURL) {
+					return
+				}
+				// 延迟删除：等接收方（如抖音）完成读取后再清理临时副本
+				setTimeout(() => {
+					plus.io.resolveLocalFileSystemURL(tempPath, (entry) => {
+						entry.remove(
+							() => console.log('[tql-share] 已清理临时分享文件:', tempPath),
+							() => {}
+						)
+					}, () => {})
+				}, 60000)
+			},
+			async shareComposedVideo() {
+				if (this.sharingVideo) return
+				// 优先分享用户本地上传/选择的测试视频，其次才是后端的成片视频
+				const localPath = this.draft.composedVideoUrl || ''
+				const shareSource = localPath || this.composedVideoUrl
+				if (!shareSource) {
+					uni.showToast({ title: '暂无可分享的成片视频', icon: 'none' })
+					return
+				}
+				if (typeof plus === 'undefined' || typeof shareWithSystem === 'undefined') {
+					uni.showToast({ title: '请在手机 App 中使用分享到抖音', icon: 'none' })
+					return
+				}
+				this.sharingVideo = true
+				this.pendingShareTempFile = ''
+				uni.showLoading({ title: '正在准备视频', mask: true })
+				try {
+					let filePath = shareSource
+					if (/^https?:\/\//i.test(filePath)) {
+						const downloadResult = await new Promise((resolve, reject) => {
+							uni.downloadFile({
+								url: filePath,
+								success: (result) => result.statusCode >= 200 && result.statusCode < 300
+									? resolve(result)
+									: reject(new Error(`视频下载失败（${result.statusCode}）`)),
+								fail: reject
+							})
+						})
+						filePath = downloadResult.tempFilePath
+					}
+					let absolutePath = this.normalizeShareFilePath(filePath)
+					absolutePath = await this.ensureVideoExtension(absolutePath)
+					console.log('[tql-share] 分享视频路径:', absolutePath)
+					shareWithSystem({
+						type: 'video',
+						path: absolutePath,
+						success: () => uni.showToast({ title: '已调起分享面板', icon: 'success' }),
+						fail: (error) => {
+							const message = String(error?.errMsg || error?.message || '')
+							if (/cancel/i.test(message)) return
+							uni.showModal({
+								title: '分享失败',
+								content: message || '请确认手机已安装可接收视频的应用（如抖音）后重试。',
+								showCancel: false
+							})
+						}
+					})
+				} catch (error) {
+					uni.showModal({
+						title: '分享失败',
+						content: String(error?.errMsg || error?.message || '视频暂时无法分享，请稍后重试。'),
+						showCancel: false
+					})
+				} finally {
+					uni.hideLoading()
+					this.sharingVideo = false
+					this.removeShareTempFile()
+				}
 			},
 			savePublishLinks() {
 				const validLinks = this.draft.publishLinks.filter((item) => /^https?:\/\//i.test(item.url || ''))
@@ -850,10 +1301,17 @@
 	.panel-card, .state-card { margin-top: 18rpx; padding: 28rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
 	.card-kicker { display: block; color: #165dff; font-size: 22rpx; font-weight: 600; }
 	.card-title, .state-title { display: block; margin-top: 0; font-size: 32rpx; font-weight: 650; line-height: 1.35; }
-	.instruction-box { position: relative; margin-top: 20rpx; overflow: hidden; }
-	.instruction-box--collapsed { max-height: 188rpx; }
-	.instruction-box--collapsed::after { position: absolute; right: 0; bottom: 0; left: 0; height: 64rpx; content: ""; background: linear-gradient(180deg, rgba(255,255,255,0), #fff); }
-	.instruction { display: block; color: #4e5969; font-size: 26rpx; line-height: 1.7; }
+	.requirement-list { margin-top: 22rpx; }
+	.requirement-section { padding: 24rpx 0; border-top: 1rpx solid #f2f3f5; }
+	.requirement-section:first-child { padding-top: 4rpx; border-top: 0; }
+	.requirement-section:last-child { padding-bottom: 0; }
+	.requirement-section__head { display: flex; align-items: center; }
+	.requirement-index { display: flex; align-items: center; justify-content: center; width: 36rpx; height: 36rpx; border-radius: 50%; background: #e8f0ff; color: #165dff; font-size: 22rpx; font-weight: 700; }
+	.requirement-title { margin-left: 12rpx; color: #1d2129; font-size: 27rpx; font-weight: 650; }
+	.requirement-copy { display: block; margin-top: 14rpx; color: #4e5969; font-size: 26rpx; line-height: 1.75; text-align: justify; }
+	.requirement-voiceover { display: flex; align-items: flex-start; margin-top: 16rpx; padding: 18rpx 20rpx; border-radius: 12rpx; background: #f7f8fa; }
+	.requirement-label { flex: 0 0 auto; margin-right: 14rpx; color: #165dff; font-size: 23rpx; font-weight: 650; }
+	.requirement-voiceover__copy { flex: 1; color: #4e5969; font-size: 24rpx; line-height: 1.65; }
 	.text-button { width: auto; height: 54rpx; margin: 12rpx 0 0; padding: 0; border: 0; background: transparent; color: #165dff; font-size: 24rpx; line-height: 54rpx; text-align: left; }
 	.detail-grid { display: flex; flex-wrap: wrap; margin-top: 24rpx; padding-top: 24rpx; border-top: 1rpx solid #f2f3f5; }
 	.detail-item { box-sizing: border-box; width: 50%; padding: 0 16rpx 20rpx 0; }
@@ -863,6 +1321,9 @@
 	.notice-title { display: block; color: #165dff; font-size: 24rpx; font-weight: 650; }
 	.notice-copy, .helper-text, .state-copy { display: block; margin-top: 10rpx; color: #4e5969; font-size: 24rpx; line-height: 1.6; }
 	.section-count { color: #165dff; font-size: 28rpx; font-weight: 650; }
+	.section-count--processing { color: #ff7d00; }
+	.section-count--success { color: #00b42a; }
+	.section-count--warning { color: #f53f3f; }
 	.shot-switcher { position: sticky; top: calc(env(safe-area-inset-top) + 186rpx); z-index: 45; width: auto; margin: 22rpx -28rpx 0; padding: 12rpx 28rpx; background: rgba(255,255,255,.96); white-space: nowrap; backdrop-filter: blur(16rpx); -webkit-backdrop-filter: blur(16rpx); }
 	.shot-switcher__inner { display: inline-flex; gap: 12rpx; min-width: 100%; }
 	.shot-pill { display: inline-flex; align-items: center; width: auto; height: 60rpx; margin: 0; padding: 0 18rpx; border: 1rpx solid #e5e6eb; border-radius: 30rpx; background: #fff; color: #4e5969; font-size: 23rpx; line-height: 60rpx; }
@@ -879,26 +1340,33 @@
 	.cover-template-desc { display: block; margin-top: 10rpx; color: #4e5969; font-size: 23rpx; line-height: 1.55; }
 	.cover-template-tip { display: block; margin-top: 12rpx; color: #165dff; font-size: 21rpx; }
 	.bgm-reference-card { margin-top: 18rpx; padding: 20rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
+	.bgm-reference-heading { display: block; color: #1d2129; font-size: 26rpx; font-weight: 650; }
+	.bgm-reference-item { padding-top: 16rpx; margin-top: 16rpx; border-top: 1rpx solid #f2f3f5; }
 	.bgm-reference-copy { margin-bottom: 14rpx; }
 	.bgm-reference-title { display: block; color: #1d2129; font-size: 26rpx; font-weight: 650; }
 	.bgm-reference-desc { display: block; margin-top: 6rpx; color: #86909c; font-size: 22rpx; }
 	.bgm-play-button { display: flex; align-items: center; justify-content: center; width: 100%; height: 72rpx; margin: 14rpx 0 0; border: 1rpx solid #bed4ff; border-radius: 12rpx; background: #f2f7ff; color: #165dff; font-size: 24rpx; font-weight: 600; line-height: 72rpx; }
 	.bgm-play-icon { margin-right: 12rpx; font-size: 22rpx; }
+	.voice-reference-card { display: flex; align-items: center; justify-content: space-between; margin-top: 18rpx; padding: 20rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
+	.voice-reference-label { color: #86909c; font-size: 23rpx; }
+	.voice-reference-value { color: #1d2129; font-size: 26rpx; font-weight: 650; }
 	.shot-workspace { margin-top: 18rpx; }
 	.sample-section { margin-top: 4rpx; }
 	.sample-title { display: block; color: #1d2129; font-size: 28rpx; font-weight: 650; }
-	.sample-video-card { position: relative; margin-top: 18rpx; overflow: hidden; border-radius: 18rpx; background: #eef1f5; box-shadow: 0 8rpx 22rpx rgba(29,33,41,.08); }
+	.sample-video-card { position: relative; width: 100%; margin-top: 18rpx; overflow: hidden; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; box-shadow: 0 8rpx 22rpx rgba(29,33,41,.08); }
 	.sample-video-card--ready { background: #111827; }
-	.sample-video-card--portrait { width: 236rpx; height: 420rpx; }
-	.sample-video-card--landscape { width: 520rpx; max-width: 100%; height: 292rpx; }
+	.sample-video-card--portrait, .sample-video-card--landscape { width: 100%; }
+	.media-card__viewport { position: relative; width: 100%; height: 360rpx; overflow: hidden; background: #111827; }
 	.sample-cover { width: 100%; height: 100%; }
 	.sample-cover--empty { display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #1f2937, #020617); }
 	.sample-cover-title { color: rgba(255,255,255,.72); font-size: 24rpx; font-weight: 650; }
 	.sample-video__mask { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.42)); }
 	.sample-play { display: flex; align-items: center; justify-content: center; width: 82rpx; height: 82rpx; border-radius: 41rpx; background: rgba(255,255,255,.94); color: #111827; font-size: 36rpx; line-height: 82rpx; text-indent: 5rpx; box-shadow: 0 12rpx 30rpx rgba(0,0,0,.28); }
 	.sample-aspect-badge { position: absolute; top: 14rpx; right: 14rpx; padding: 6rpx 14rpx; border-radius: 999rpx; background: rgba(0,0,0,.46); color: #fff; font-size: 20rpx; line-height: 1.2; backdrop-filter: blur(12rpx); -webkit-backdrop-filter: blur(12rpx); }
-	.sample-play-copy { position: absolute; left: 0; right: 0; bottom: 18rpx; color: rgba(255,255,255,.92); font-size: 22rpx; text-align: center; text-shadow: 0 2rpx 8rpx rgba(0,0,0,.35); }
 	.sample-video-card--empty { display: flex; box-sizing: border-box; align-items: center; justify-content: center; flex-direction: column; width: 236rpx; height: 280rpx; padding: 20rpx; border: 1rpx dashed #c9cdd4; background: #f7f8fa; box-shadow: none; }
+	.media-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 18rpx 22rpx; background: #fff; }
+	.media-card__title { min-width: 0; overflow: hidden; color: #1d2129; font-size: 24rpx; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+	.media-card__meta { flex: 0 0 auto; color: #86909c; font-size: 22rpx; }
 	.sample-empty-title { color: #4e5969; font-size: 24rpx; font-weight: 650; }
 	.sample-empty-copy { margin-top: 8rpx; color: #86909c; font-size: 21rpx; line-height: 1.45; text-align: center; }
 	.upload-block { margin-top: 28rpx; padding-top: 4rpx; border-top: 1rpx solid #f2f3f5; }
@@ -910,13 +1378,20 @@
 	.upload-requirement-row:last-child { border-bottom: 0; }
 	.upload-requirement-label { flex: 0 0 132rpx; color: #86909c; font-size: 23rpx; }
 	.upload-requirement-value { flex: 1; min-width: 0; color: #1d2129; font-size: 24rpx; line-height: 1.55; }
-	.shot-preview { display: flex; align-items: center; justify-content: center; min-height: 220rpx; margin-top: 18rpx; border: 1rpx dashed #c9cdd4; border-radius: 16rpx; background: #f7f8fa; }
+	.shot-preview { position: relative; display: flex; align-items: center; justify-content: center; min-height: 220rpx; margin-top: 18rpx; overflow: hidden; border: 1rpx dashed #c9cdd4; border-radius: 16rpx; background: #f7f8fa; }
+	.shot-preview--ready { display: block; border-style: solid; border-color: #e5e6eb; background: #111827; box-shadow: 0 8rpx 22rpx rgba(29,33,41,.08); }
 	.shot-preview__empty { text-align: center; }
 	.upload-icon { display: inline-flex; align-items: center; justify-content: center; width: 62rpx; height: 62rpx; border-radius: 31rpx; background: #e8f3ff; color: #165dff; font-size: 38rpx; line-height: 62rpx; }
 	.upload-title { display: block; margin-top: 14rpx; color: #1d2129; font-size: 26rpx; font-weight: 650; }
 	.upload-copy { display: block; margin-top: 8rpx; color: #86909c; font-size: 22rpx; }
-	.shot-preview__file { width: 100%; padding: 30rpx; text-align: center; }
-	.shot-toolbar { display: flex; flex-wrap: nowrap; gap: 12rpx; margin-top: 20rpx; overflow-x: auto; }
+	.uploaded-video-cover { position: relative; width: 100%; height: 360rpx; overflow: hidden; background: #111827; }
+	.uploaded-video-poster { display: block; width: 100%; height: 100%; background: #111827; }
+	.uploaded-video-poster--empty { display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.58); font-size: 24rpx; }
+	.uploaded-video-mask { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.16); pointer-events: none; }
+	.uploaded-video-play { display: flex; align-items: center; justify-content: center; width: 86rpx; height: 86rpx; border-radius: 50%; background: rgba(255,255,255,.94); color: #1d2129; font-size: 34rpx; line-height: 86rpx; text-align: center; }
+	.uploaded-video-delete { position: absolute; z-index: 4; top: 16rpx; right: 16rpx; box-sizing: border-box; width: auto; min-width: 92rpx; height: 52rpx; margin: 0; padding: 0 20rpx; border: 0; border-radius: 26rpx; background: rgba(0, 0, 0, 0.68); color: #fff; font-size: 23rpx; line-height: 52rpx; text-align: center; }
+	.uploaded-video-delete::after { display: none; }
+	.uploaded-video-meta { text-align: left; }
 	.shot-card { margin-top: 20rpx; padding: 24rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
 	.shot-title { display: block; color: #1d2129; font-size: 28rpx; font-weight: 650; }
 	.shot-requirement { display: block; max-width: 468rpx; margin-top: 8rpx; color: #4e5969; font-size: 24rpx; line-height: 1.55; }
@@ -933,9 +1408,60 @@
 	.ghost-button--compact { flex: 0 0 auto; min-width: 112rpx; height: 60rpx; padding: 0 18rpx; font-size: 22rpx; line-height: 60rpx; }
 	.ghost-button--danger { color: #f53f3f; }
 	.compose-summary { display: flex; gap: 16rpx; margin-top: 24rpx; }
+	.compose-status-card { margin-top: 20rpx; padding: 22rpx; border-radius: 16rpx; background: #fff7e8; }
+	.compose-status-card--success { background: #e8ffea; }
+	.compose-status-title { display: block; color: #1d2129; font-size: 25rpx; font-weight: 650; }
+	.compose-status-copy { display: block; margin-top: 8rpx; color: #4e5969; font-size: 22rpx; line-height: 1.55; }
 	.compose-stat { flex: 1; padding: 22rpx 12rpx; border-radius: 16rpx; background: #f5f6f7; text-align: center; }
 	.compose-number { display: block; color: #1d2129; font-size: 32rpx; font-weight: 700; }
 	.compose-label { display: block; margin-top: 8rpx; color: #86909c; font-size: 22rpx; }
+	.compose-section { margin-top: 22rpx; padding: 24rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
+	.composed-video-card { margin-top: 22rpx; padding: 24rpx; border: 1rpx solid #e5e6eb; border-radius: 16rpx; background: #fff; }
+	.composed-video-player { display: block; width: 100%; height: 360rpx; margin-top: 18rpx; overflow: hidden; border-radius: 14rpx; background: #111827; }
+	.composed-video-empty { display: flex; box-sizing: border-box; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 260rpx; margin-top: 18rpx; border-radius: 14rpx; background: #f7f8fa; }
+	.composed-video-empty__title { color: #4e5969; font-size: 25rpx; font-weight: 600; }
+	.composed-video-empty__copy { margin-top: 10rpx; color: #86909c; font-size: 21rpx; }
+	.upload-test-video-button { display: flex; align-items: center; justify-content: center; width: 100%; height: 76rpx; margin-top: 18rpx; border: 1rpx solid #c9cdd4; border-radius: 12rpx; background: #fff; color: #1d2129; font-size: 25rpx; font-weight: 600; line-height: normal; }
+	.upload-test-video-button::after { display: none; }
+	.save-video-button { display: flex; align-items: center; justify-content: center; width: 100%; height: 76rpx; margin-top: 18rpx; border: 1rpx solid #165dff; border-radius: 12rpx; background: #fff; color: #165dff; font-size: 25rpx; font-weight: 650; line-height: normal; }
+	.save-video-button::after { display: none; }
+	.save-video-button[disabled] { border-color: #c9cdd4; background: #f7f8fa; color: #86909c; opacity: 1; }
+	.save-video-tip { display: block; margin-top: 10rpx; color: #86909c; font-size: 21rpx; line-height: 1.5; text-align: center; }
+	.share-douyin-card { margin-top: 24rpx; padding: 24rpx; border-radius: 16rpx; background: #161823; }
+	.share-douyin-title { display: block; color: #ffffff; font-size: 26rpx; font-weight: 650; }
+	.share-douyin-desc { display: block; margin-top: 8rpx; color: rgba(255,255,255,.72); font-size: 22rpx; line-height: 1.55; }
+	.share-douyin-button { display: flex; align-items: center; justify-content: center; width: 100%; height: 76rpx; margin-top: 18rpx; border: 0; border-radius: 12rpx; background: #fe2c55; color: #ffffff; font-size: 25rpx; font-weight: 650; line-height: normal; }
+	.share-douyin-button::after { display: none; }
+	.share-douyin-button[disabled] { background: #4e5969; color: rgba(255,255,255,.72); opacity: 1; }
+	.compose-section-title { display: block; font-size: 27rpx; font-weight: 650; }
+	.compose-section-desc { display: block; margin-top: 8rpx; color: #86909c; font-size: 21rpx; line-height: 1.5; }
+	.compose-node-list { margin-top: 16rpx; }
+	.compose-node { display: flex; align-items: flex-start; padding: 16rpx 0; border-bottom: 1rpx solid #f2f3f5; }
+	.compose-node:last-child { border-bottom: 0; }
+	.compose-node-index { display: flex; align-items: center; justify-content: center; width: 38rpx; height: 38rpx; border-radius: 19rpx; background: #e8f3ff; color: #165dff; font-size: 20rpx; font-weight: 700; }
+	.compose-node-copy { flex: 1; min-width: 0; margin-left: 14rpx; }
+	.compose-node-title { display: block; font-size: 24rpx; font-weight: 600; }
+	.compose-node-desc { display: -webkit-box; margin-top: 6rpx; overflow: hidden; color: #86909c; font-size: 21rpx; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+	.compose-config-row { display: flex; align-items: center; justify-content: space-between; min-height: 72rpx; border-bottom: 1rpx solid #f2f3f5; font-size: 23rpx; }
+	.compose-config-row:last-child { border-bottom: 0; }
+	.compose-config-value { max-width: 62%; color: #4e5969; text-align: right; }
+	.state-choice-button { display: inline-flex; box-sizing: border-box; align-items: center; justify-content: center; gap: 8rpx; width: auto; min-width: 112rpx; height: 56rpx; margin: 0; padding: 0 18rpx; border: 1rpx solid #c9cdd4; border-radius: 10rpx; background: #fff; color: #4e5969; font-size: 22rpx; font-weight: 500; line-height: normal; }
+	.state-choice-button::after { display: none; }
+	.state-choice-button--active { border-color: #165dff; background: #edf3ff; color: #165dff; font-weight: 650; }
+	.state-choice-icon { display: inline-flex; align-items: center; justify-content: center; width: 26rpx; height: 26rpx; border: 1rpx solid currentColor; border-radius: 5rpx; font-size: 18rpx; line-height: 26rpx; }
+	.subtitle-setting { padding: 18rpx 0; border-bottom: 1rpx solid #f2f3f5; }
+	.subtitle-setting__label { display: block; color: #1d2129; font-size: 23rpx; }
+	.subtitle-mode-tabs { display: flex; margin-top: 16rpx; padding: 6rpx; border-radius: 14rpx; background: #f2f3f5; }
+	.subtitle-mode-button { flex: 1; height: 60rpx; margin: 0; padding: 0; border: 0; border-radius: 10rpx; background: transparent; color: #4e5969; font-size: 23rpx; line-height: 60rpx; }
+	.subtitle-mode-button::after { display: none; }
+	.subtitle-mode-button--active { background: #fff; color: #165dff; font-weight: 650; box-shadow: 0 3rpx 10rpx rgba(29,33,41,.08); }
+	.fixed-subtitle-list { margin: 18rpx 0; padding: 20rpx; border-radius: 14rpx; background: #f7f8fa; }
+	.fixed-subtitle-tip { display: block; color: #86909c; font-size: 21rpx; line-height: 1.5; }
+	.fixed-subtitle-item { margin-top: 18rpx; padding: 20rpx; border: 1rpx solid #e5e6eb; border-radius: 12rpx; background: #fff; }
+	.fixed-subtitle-head { display: flex; align-items: center; justify-content: space-between; }
+	.fixed-subtitle-title { color: #1d2129; font-size: 24rpx; font-weight: 650; }
+	.fixed-subtitle-input { box-sizing: border-box; width: 100%; min-height: 82rpx; margin-top: 14rpx; padding: 16rpx; border-radius: 10rpx; background: #f7f8fa; color: #1d2129; font-size: 23rpx; line-height: 1.55; }
+	.fixed-subtitle-input[disabled] { color: #a9aeb8; opacity: .72; }
 	.check-list { margin-top: 22rpx; }
 	.check-row { display: flex; align-items: flex-start; padding: 18rpx 0; border-bottom: 1rpx solid #f2f3f5; }
 	.check-row:last-child { border-bottom: 0; }

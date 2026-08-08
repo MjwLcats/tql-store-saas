@@ -143,6 +143,69 @@ public class ContentAssetService {
         catch (IOException ex) { throw new IllegalStateException("BGM文件读取失败", ex); }
     }
 
+    public ContentAssetView uploadMaterial(Long tenantId, String materialType, MultipartFile file) {
+        String type = materialType == null ? "" : materialType.trim().toUpperCase(Locale.ROOT);
+        if (!type.equals("VIDEO") && !type.equals("IMAGE")) {
+            throw new IllegalArgumentException("仅支持上传视频或图片素材");
+        }
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("请选择素材文件");
+        long maxSize = type.equals("VIDEO") ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+        if (file.getSize() > maxSize) {
+            throw new IllegalArgumentException(type.equals("VIDEO") ? "视频素材不能超过200MB" : "图片素材不能超过10MB");
+        }
+        String originalName = file.getOriginalFilename() == null ? "material" : file.getOriginalFilename().trim();
+        String lowerName = originalName.toLowerCase(Locale.ROOT);
+        String extension;
+        if (type.equals("VIDEO")) {
+            extension = lowerName.endsWith(".mp4") ? ".mp4" : "";
+            if (extension.isEmpty()) throw new IllegalArgumentException("视频素材仅支持MP4格式");
+        } else {
+            extension = lowerName.endsWith(".jpeg") ? ".jpeg"
+                    : lowerName.endsWith(".jpg") ? ".jpg"
+                    : lowerName.endsWith(".png") ? ".png"
+                    : lowerName.endsWith(".webp") ? ".webp" : "";
+            if (extension.isEmpty()) throw new IllegalArgumentException("图片素材仅支持JPG、PNG、WEBP格式");
+        }
+        String storedName = UUID.randomUUID() + extension;
+        String directoryName = type.toLowerCase(Locale.ROOT);
+        Path tenantDirectory = storageRoot.resolve(String.valueOf(tenantId)).resolve("materials").resolve(directoryName).normalize();
+        Path target = tenantDirectory.resolve(storedName).normalize();
+        ensureInsideStorage(target, tenantDirectory);
+        try {
+            Files.createDirectories(tenantDirectory);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            throw new IllegalStateException("素材文件保存失败", ex);
+        }
+        return new ContentAssetView(
+                "/api/operation/content-assets/materials/" + tenantId + "/" + directoryName + "/" + storedName,
+                originalName,
+                file.getSize());
+    }
+
+    public Resource loadMaterial(Long tenantId, String materialType, String fileName) {
+        String type = materialType == null ? "" : materialType.trim().toLowerCase(Locale.ROOT);
+        if (!type.equals("video") && !type.equals("image")) throw new IllegalArgumentException("素材类型不正确");
+        String pattern = type.equals("video")
+                ? "[0-9a-fA-F-]{36}\\.mp4"
+                : "[0-9a-fA-F-]{36}\\.(jpg|jpeg|png|webp)";
+        if (fileName == null || !fileName.matches(pattern)) throw new IllegalArgumentException("素材文件不存在");
+        Path tenantDirectory = storageRoot.resolve(String.valueOf(tenantId)).resolve("materials").resolve(type).normalize();
+        Path target = tenantDirectory.resolve(fileName).normalize();
+        ensureInsideStorage(target, tenantDirectory);
+        if (!Files.isRegularFile(target)) throw new IllegalArgumentException("素材文件不存在");
+        try { return new UrlResource(target.toUri()); }
+        catch (IOException ex) { throw new IllegalStateException("素材文件读取失败", ex); }
+    }
+
+    public String materialMediaType(String materialType, String fileName) {
+        if ("video".equalsIgnoreCase(materialType)) return "video/mp4";
+        String name = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (name.endsWith(".png")) return "image/png";
+        if (name.endsWith(".webp")) return "image/webp";
+        return "image/jpeg";
+    }
+
     private void ensureInsideStorage(Path target, Path tenantDirectory) {
         if (!target.startsWith(storageRoot) || !target.startsWith(tenantDirectory)) {
             throw new IllegalArgumentException("非法文件路径");

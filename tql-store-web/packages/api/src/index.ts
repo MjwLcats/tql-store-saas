@@ -8,6 +8,12 @@ import type {
   ContentAccountPayload,
   ContentBgmItem,
   ContentBgmPayload,
+  ContentMaterialFolderItem,
+  ContentMaterialFolderType,
+  ContentMaterialFolderPayload,
+  ContentMaterialItem,
+  ContentMaterialPayload,
+  ContentMaterialType,
   ContentVideoPerformanceItem,
   ContentDeliveryItem,
   ContentActivityItem,
@@ -108,12 +114,14 @@ export const fetchContents = (params: ContentQuery) =>
 
 export const fetchContentAccounts = () =>
   request<ContentAccountItem[]>({ method: 'GET', url: '/api/operation/content-accounts' });
-export const fetchContentBgms = (params?: { keyword?: string; videoType?: string; mood?: string; enabled?: boolean }) =>
+export const fetchContentBgms = (params?: { folderId?: number; keyword?: string; videoType?: string; mood?: string; enabled?: boolean }) =>
   request<ContentBgmItem[]>({ method: 'GET', url: '/api/operation/content-bgms', params });
 export const createContentBgm = (data: ContentBgmPayload) =>
   request<number>({ method: 'POST', url: '/api/operation/content-bgms', data });
 export const updateContentBgm = (id: number, data: ContentBgmPayload) =>
   request<void>({ method: 'PUT', url: `/api/operation/content-bgms/${id}`, data });
+export const moveContentBgm = (id: number, folderId: number) =>
+  request<void>({ method: 'POST', url: `/api/operation/content-bgms/${id}/move`, data: { folderId } });
 export const deleteContentBgm = (id: number) =>
   request<void>({ method: 'DELETE', url: `/api/operation/content-bgms/${id}` });
 export const uploadContentBgm = (file: File) => {
@@ -121,6 +129,36 @@ export const uploadContentBgm = (file: File) => {
   data.append('file', file);
   return request<{ url: string; originalName: string; size: number }>({
     method: 'POST', url: '/api/operation/content-assets/bgm', data
+  });
+};
+export const fetchContentMaterials = (params: {
+  materialType: ContentMaterialType;
+  folderId?: number;
+  keyword?: string;
+  category?: string;
+  enabled?: boolean;
+}) => request<ContentMaterialItem[]>({ method: 'GET', url: '/api/operation/content-materials', params });
+export const createContentMaterial = (data: ContentMaterialPayload) =>
+  request<number>({ method: 'POST', url: '/api/operation/content-materials', data });
+export const updateContentMaterial = (id: number, data: ContentMaterialPayload) =>
+  request<void>({ method: 'PUT', url: `/api/operation/content-materials/${id}`, data });
+export const moveContentMaterial = (id: number, folderId: number) =>
+  request<void>({ method: 'POST', url: `/api/operation/content-materials/${id}/move`, data: { folderId } });
+export const deleteContentMaterial = (id: number) =>
+  request<void>({ method: 'DELETE', url: `/api/operation/content-materials/${id}` });
+export const fetchContentMaterialFolders = (materialType: ContentMaterialFolderType, params?: { keyword?: string; enabled?: boolean }) =>
+  request<ContentMaterialFolderItem[]>({ method: 'GET', url: '/api/operation/material-folders', params: { materialType, ...params } });
+export const createContentMaterialFolder = (data: ContentMaterialFolderPayload) =>
+  request<number>({ method: 'POST', url: '/api/operation/material-folders', data });
+export const updateContentMaterialFolder = (id: number, data: ContentMaterialFolderPayload) =>
+  request<void>({ method: 'PUT', url: `/api/operation/material-folders/${id}`, data });
+export const deleteContentMaterialFolder = (id: number) =>
+  request<void>({ method: 'DELETE', url: `/api/operation/material-folders/${id}` });
+export const uploadContentMaterial = (materialType: ContentMaterialType, file: File) => {
+  const data = new FormData();
+  data.append('file', file);
+  return request<{ url: string; originalName: string; size: number }>({
+    method: 'POST', url: `/api/operation/content-assets/materials/${materialType}`, data
   });
 };
 export const createContentAccount = (data: ContentAccountPayload) =>

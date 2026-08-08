@@ -1,11 +1,11 @@
 import { appConfig } from '@/config/app.uts'
 import { clearSession, getToken } from '@/utils/auth.uts'
 
-const baseUrl = appConfig.apiBaseUrl.replace(/\/$/, '')
+const baseUrl = String(appConfig.apiBaseUrl ?? '').replace(/\/$/, '')
 
 function getErrorMessage(response: RequestSuccess<any> | null): string {
-	if (response && response.data && response.data.message) return response.data.message
-	if (response && response.statusCode) return `请求失败（${response.statusCode}）`
+	if (response != null && response.data != null && response.data.message != null) return String(response.data.message)
+	if (response != null && response.statusCode > 0) return `请求失败（${response.statusCode}）`
 	return '网络请求失败，请稍后重试'
 }
 export function request<T>(options: UTSJSONObject): Promise<T> {
@@ -14,19 +14,19 @@ export function request<T>(options: UTSJSONObject): Promise<T> {
 		const header = {
 			'Content-Type': 'application/json',
 			'X-Client-Type': appConfig.clientType,
-			...(options.header || {})
+			...(options.header ?? {})
 		}
 
-		if (token) header.Authorization = `Bearer ${token}`
+		if (token.length > 0) header.Authorization = `Bearer ${token}`
 
 		uni.request({
 			url: `${baseUrl}${options.url}`,
-			method: options.method || 'GET',
+			method: options.method ?? 'GET',
 			data: options.data,
 			header,
-			timeout: options.timeout || 12000,
+			timeout: options.timeout ?? 12000,
 			success(response: RequestSuccess<any>) {
-				const body = response.data || {}
+				const body = response.data ?? {}
 				if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 200) {
 					resolve(body.data as T)
 					return
@@ -36,7 +36,7 @@ export function request<T>(options: UTSJSONObject): Promise<T> {
 				reject(new Error(getErrorMessage(response)))
 			},
 			fail(error: RequestFail) {
-				const detail = error && error.errMsg ? error.errMsg : ''
+				const detail = error != null && error.errMsg != null ? String(error.errMsg) : ''
 				const message = detail.includes('timeout')
 					? '连接服务器超时，请稍后重试'
 					: '无法连接服务器，请检查网络或服务地址'

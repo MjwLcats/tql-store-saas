@@ -25,8 +25,7 @@
 							placeholder-class="field-placeholder"
 							confirm-type="next"
 							@focus="activeField = 'merchantNo'"
-							@blur="activeField = ''"
-						/>
+							@blur="activeField = ''" />
 					</view>
 
 					<view
@@ -44,8 +43,7 @@
 							placeholder-class="field-placeholder"
 							confirm-type="next"
 							@focus="activeField = 'account'"
-							@blur="activeField = ''"
-						/>
+							@blur="activeField = ''" />
 					</view>
 
 					<view
@@ -56,28 +54,16 @@
 						<input
 							v-model="password"
 							class="field-input"
-							type="text"
-							:password="!passwordVisible"
+							:type="passwordVisible ? 'text' : 'password'"
 							maxlength="32"
 							placeholder="请输入密码"
 							placeholder-class="field-placeholder"
 							confirm-type="done"
 							@focus="activeField = 'password'"
 							@blur="activeField = ''"
-							@confirm="handleLogin"
-						/>
-						<button
-							class="field-action field-action--icon"
-							data-testid="password-visibility"
-							hover-class="field-action--pressed"
-							:aria-label="passwordVisible ? '隐藏密码' : '显示密码'"
-							@click="passwordVisible = !passwordVisible"
-						>
-							<image
-								class="eye-icon"
-								:src="passwordVisible ? '/static/icons/eye-off.svg' : '/static/icons/eye.svg'"
-								mode="aspectFit"
-							/>
+							@confirm="handleLogin" />
+						<button class="field-action field-action--icon" hover-class="field-action--pressed" aria-label="切换密码显示" @click="passwordVisible = !passwordVisible">
+							<image class="eye-icon" :src="passwordVisible ? '/static/icons/eye-off.svg' : '/static/icons/eye.svg'" mode="aspectFit" />
 						</button>
 					</view>
 
@@ -91,7 +77,6 @@
 						class="login-button"
 						data-testid="login-button"
 						hover-class="login-button--pressed"
-						:loading="loading"
 						:disabled="loading"
 						@click="handleLogin"
 					>

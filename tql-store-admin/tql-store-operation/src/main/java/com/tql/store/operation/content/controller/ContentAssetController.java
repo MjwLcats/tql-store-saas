@@ -91,4 +91,26 @@ public class ContentAssetController {
                 .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
                 .body(contentAssetService.loadBgm(tenantId, fileName));
     }
+    @PostMapping("/materials/{materialType}")
+    public ApiResponse<ContentAssetView> uploadMaterial(
+            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Client-Type") String clientType,
+            @PathVariable String materialType,
+            @RequestParam("file") MultipartFile file) {
+        permissionService.requireAny(userId, tenantId, clientType,
+                "merchant:content:bgm:create", "merchant:content:bgm:update");
+        return ApiResponse.success(contentAssetService.uploadMaterial(tenantId, materialType, file));
+    }
+
+    @GetMapping("/materials/{tenantId}/{materialType}/{fileName}")
+    public ResponseEntity<Resource> material(
+            @PathVariable Long tenantId,
+            @PathVariable String materialType,
+            @PathVariable String fileName) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.valueOf(contentAssetService.materialMediaType(materialType, fileName)))
+                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                .body(contentAssetService.loadMaterial(tenantId, materialType, fileName));
+    }
 }

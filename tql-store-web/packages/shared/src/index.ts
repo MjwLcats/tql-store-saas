@@ -259,6 +259,7 @@ export interface ContentAccountItem {
   platform: string;
   accountName: string;
   platformAccountId: string;
+  platformHomepageUrl?: string;
   accountType: string;
   organizationId?: number;
   organizationName?: string;
@@ -273,6 +274,7 @@ export interface ContentAccountPayload {
   platform: string;
   accountName: string;
   platformAccountId: string;
+  platformHomepageUrl?: string;
   accountType: string;
   organizationId?: number;
   employeeId: number;
@@ -283,6 +285,7 @@ export interface ContentBgmItem {
   bgmName: string;
   fileUrl: string;
   originalFileName: string;
+  folderId: number;
   videoType: string;
   mood: string;
   energyLevel: string;
@@ -296,6 +299,47 @@ export interface ContentBgmItem {
 }
 
 export type ContentBgmPayload = Omit<ContentBgmItem, 'id' | 'updateTime'>;
+
+export type ContentMaterialType = 'VIDEO' | 'IMAGE';
+export type ContentMaterialFolderType = ContentMaterialType | 'AUDIO';
+
+export interface ContentMaterialItem {
+  id: number;
+  materialName: string;
+  materialType: ContentMaterialType;
+  folderId: number;
+  fileUrl: string;
+  originalFileName: string;
+  fileSize: number;
+  category: string;
+  tags?: string;
+  description?: string;
+  copyrightStatus: string;
+  copyrightNote?: string;
+  enabled: boolean;
+  updateTime: string;
+}
+
+export type ContentMaterialPayload = Omit<ContentMaterialItem, 'id' | 'updateTime'>;
+
+export interface ContentMaterialFolderItem {
+  id: number;
+  folderName: string;
+  materialType: ContentMaterialFolderType;
+  parentId: number;
+  enabled: boolean;
+  sortOrder: number;
+  itemCount: number;
+  updateTime: string;
+}
+
+export interface ContentMaterialFolderPayload {
+  folderName: string;
+  materialType: ContentMaterialFolderType;
+  parentId: number;
+  enabled: boolean;
+  sortOrder: number;
+}
 
 export interface ContentVideoPerformanceItem {
   id: number;

@@ -6,8 +6,21 @@ const source = await readFile(
 	new URL('../utils/content-task.js', import.meta.url),
 	'utf8'
 )
-const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-const { categoryLabel, contentCreationLabel, contentCreationType, formatDeadline, stageTone } = await import(moduleUrl)
+const withResolvedAlias = source.replace(
+	'@/utils/date.js',
+	new URL('../utils/date.js', import.meta.url).href
+)
+const moduleUrl = `data:text/javascript;base64,${Buffer.from(withResolvedAlias).toString('base64')}`
+const {
+	categoryLabel,
+	contentCreationLabel,
+	contentCreationType,
+	formatDeadline,
+	stageTone,
+	taskDisplayStage,
+	taskPlanStatus,
+	taskStatusLabel
+} = await import(moduleUrl)
 
 test('maps internal stages to stable UI tones', () => {
 	assert.equal(stageTone('READY_TO_SHOOT'), 'primary')
@@ -15,6 +28,18 @@ test('maps internal stages to stable UI tones', () => {
 	assert.equal(stageTone('COMPLETED'), 'success')
 	assert.equal(stageTone('EXPIRED'), 'danger')
 	assert.equal(stageTone('PENDING_REVIEW'), 'muted')
+	assert.equal(stageTone('PAUSED'), 'warning')
+})
+
+test('plan state takes precedence over the employee execution stage', () => {
+	const paused = { planStatus: 'PAUSED', planStatusLabel: '已暂停', stage: 'READY_TO_SHOOT', stageLabel: '待拍摄' }
+	assert.equal(taskPlanStatus(paused), 'PAUSED')
+	assert.equal(taskDisplayStage(paused), 'PAUSED')
+	assert.equal(taskStatusLabel(paused), '已暂停')
+
+	const terminated = { activityStatus: 'TERMINATED', stage: 'READY_TO_SHOOT', stageLabel: '待拍摄' }
+	assert.equal(taskDisplayStage(terminated), 'TERMINATED')
+	assert.equal(taskStatusLabel(terminated), '已终止')
 })
 
 test('formats deadlines in employee-facing language', () => {

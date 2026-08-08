@@ -24,7 +24,7 @@ public class ContentAccountService {
     public List<ContentAccountView> list(Long tenantId) {
         return jdbcTemplate.query("""
                 SELECT account.id, account.platform, account.account_name,
-                       account.platform_account_id, account.account_type,
+                       account.platform_account_id, account.platform_homepage_url, account.account_type,
                        account.organization_id, organization.org_name,
                        account.employee_id, employee.display_name, employee.employee_number,
                        account.status, account.update_time
@@ -37,7 +37,7 @@ public class ContentAccountService {
                 ORDER BY account.id DESC
                 """, (rs, rowNum) -> new ContentAccountView(
                 rs.getLong("id"), rs.getString("platform"), rs.getString("account_name"),
-                rs.getString("platform_account_id"), rs.getString("account_type"),
+                rs.getString("platform_account_id"), rs.getString("platform_homepage_url"), rs.getString("account_type"),
                 rs.getObject("organization_id", Long.class), rs.getString("org_name"),
                 rs.getLong("employee_id"), rs.getString("display_name"),
                 rs.getString("employee_number"), rs.getString("status"),
@@ -52,20 +52,21 @@ public class ContentAccountService {
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO ops_content_platform_account
-                      (tenant_id, platform, account_name, platform_account_id, account_type,
+                      (tenant_id, platform, account_name, platform_account_id, platform_homepage_url, account_type,
                        organization_id, employee_id, status, create_by, update_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             statement.setObject(1, tenantId);
             statement.setObject(2, request.platform().trim());
             statement.setObject(3, request.accountName().trim());
             statement.setObject(4, request.platformAccountId().trim());
-            statement.setObject(5, request.accountType().trim());
-            statement.setObject(6, request.organizationId());
-            statement.setObject(7, request.employeeId());
-            statement.setObject(8, "PENDING");
-            statement.setObject(9, operatorId);
+            statement.setObject(5, normalizeUrl(request.platformHomepageUrl()));
+            statement.setObject(6, request.accountType().trim());
+            statement.setObject(7, request.organizationId());
+            statement.setObject(8, request.employeeId());
+            statement.setObject(9, "PENDING");
             statement.setObject(10, operatorId);
+            statement.setObject(11, operatorId);
             return statement;
         }, keyHolder);
         return keyHolder.getKey().longValue();
@@ -76,11 +77,11 @@ public class ContentAccountService {
         validate(tenantId, request);
         int changed = jdbcTemplate.update("""
                 UPDATE ops_content_platform_account
-                SET platform = ?, account_name = ?, platform_account_id = ?, account_type = ?,
+                SET platform = ?, account_name = ?, platform_account_id = ?, platform_homepage_url = ?, account_type = ?,
                     organization_id = ?, employee_id = ?, update_by = ?
                 WHERE id = ? AND tenant_id = ? AND deleted = 0
                 """, request.platform().trim(), request.accountName().trim(),
-                request.platformAccountId().trim(), request.accountType().trim(),
+                request.platformAccountId().trim(), normalizeUrl(request.platformHomepageUrl()), request.accountType().trim(),
                 request.organizationId(), request.employeeId(), operatorId, id, tenantId);
         if (changed == 0) throw new IllegalArgumentException("账号不存在");
     }
@@ -124,5 +125,9 @@ public class ContentAccountService {
                 throw new IllegalArgumentException("归属组织不可用");
             }
         }
+    }
+
+    private String normalizeUrl(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

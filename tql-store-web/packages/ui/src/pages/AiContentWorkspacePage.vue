@@ -201,32 +201,118 @@
         <a-table row-key="id" :columns="accountColumns" :data="filteredAccounts" :loading="accountsLoading" :row-selection="{ type: 'checkbox', showCheckedAll: true }" v-model:selected-keys="selectedAccountIds" :pagination="{ pageSize: 8 }">
           <template #platform="{ record }"><span class="account-platform"><i :class="record.platformClass">{{ record.platformShort }}</i>{{ record.platform }}</span></template>
           <template #status="{ record }"><span class="status-dot" :class="record.status === '正常' ? 'status-active' : 'status-draft'">{{ record.status }}</span></template>
-          <template #actions="{ record }"><a-space size="mini"><a-link v-if="can(P.accountDetailView)" @click="openAccountEditor(record, true)">查看</a-link><a-link v-if="can(P.accountUpdate)" @click="openAccountEditor(record)">编辑</a-link><a-link v-if="can(P.accountDelete)" status="danger" @click="removeAccounts([record.id])">删除</a-link></a-space></template>
+          <template #actions="{ record }"><a-space size="mini"><a-link v-if="can(P.accountDetailView)" @click="openAccountEditor(record, true)">查看</a-link><a-link v-if="can(P.accountUpdate)" @click="openAccountEditor(record)">编辑</a-link><a-link v-if="can(P.accountDelete)" status="danger" @click="removeAccounts([record.id])">删除</a-link><a-link @click="viewPlatformHomepage(record)">查看平台主页</a-link></a-space></template>
         </a-table>
       </a-card>
       </section>
 
-    <section v-else class="module-content">
-      <a-card class="search-panel" :bordered="false">
-        <a-form :model="bgmFilters" layout="inline">
-          <a-form-item label="BGM名称"><a-input v-model="bgmFilters.keyword" placeholder="名称或文件名" allow-clear /></a-form-item>
-          <a-form-item label="适用视频"><a-select v-model="bgmFilters.videoType" placeholder="全部类型" allow-clear><a-option v-for="item in bgmVideoTypes" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
-          <a-form-item label="情绪氛围"><a-select v-model="bgmFilters.mood" placeholder="全部氛围" allow-clear><a-option v-for="item in bgmMoods" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
-          <a-form-item label="状态"><a-select v-model="bgmFilters.enabled" placeholder="全部状态" allow-clear><a-option :value="true">启用</a-option><a-option :value="false">停用</a-option></a-select></a-form-item>
-        </a-form>
-        <div class="search-actions"><a-button @click="resetBgmFilters">重置</a-button><a-button type="primary" @click="loadBgms">查询</a-button></div>
-      </a-card>
-      <a-card class="data-panel" :bordered="false">
-        <div class="panel-toolbar"><div><strong>BGM管理</strong><span>共 {{ bgms.length }} 条</span></div><a-button v-if="can(P.bgmCreate)" type="primary" @click="openBgmEditor()"><template #icon><IconPlus /></template>上传BGM</a-button></div>
-        <a-table row-key="id" :columns="bgmColumns" :data="bgms" :loading="bgmLoading" :scroll="{ x: 1500 }" :pagination="{ pageSize: 10 }">
-          <template #audio="{ record }"><div class="bgm-name"><strong>{{ record.bgmName }}</strong><audio :src="record.fileUrl" controls preload="none" /></div></template>
-          <template #classification="{ record }"><a-space wrap><a-tag color="arcoblue">{{ record.videoType }}</a-tag><a-tag color="purple">{{ record.mood }}</a-tag><a-tag>{{ record.energyLevel }}</a-tag></a-space></template>
-          <template #duration="{ record }">{{ formatBgmDuration(record.durationSeconds) }}</template>
-          <template #copyright="{ record }"><div class="bgm-copyright"><strong>{{ record.copyrightStatus }}</strong><span>{{ record.copyrightNote || '未填写范围说明' }}</span></div></template>
-          <template #enabled="{ record }"><a-tag :color="record.enabled ? 'green' : 'gray'">{{ record.enabled ? '启用' : '停用' }}</a-tag></template>
-          <template #actions="{ record }"><a-space size="mini"><a-link v-if="can(P.bgmUpdate)" @click="openBgmEditor(record)">编辑</a-link><a-link v-if="can(P.bgmDelete)" status="danger" @click="removeBgm(record)">删除</a-link></a-space></template>
-        </a-table>
-      </a-card>
+    <section v-else class="module-content material-library">
+      <div class="material-workbench">
+        <aside class="material-type-rail">
+          <a-input-search
+            v-model="folderKeyword"
+            class="folder-search-input"
+            placeholder="搜索文件夹"
+            allow-clear
+            @search="reloadMaterialFolders"
+            @press-enter="reloadMaterialFolders"
+            @clear="reloadMaterialFolders"
+          />
+          <a-tree
+            v-if="materialTreeData.length"
+            class="material-folder-tree"
+            :data="materialTreeData"
+            :selected-keys="materialTreeSelectedKeys"
+            :default-expanded-keys="materialTreeData.map(n => n.key)"
+            block-node
+            @select="onMaterialTreeSelect"
+          />
+          <a-empty v-else description="暂无文件夹" />
+          <a-button v-if="can(P.bgmCreate)" class="folder-create-btn" type="text" long @click="openMaterialFolderEditor()">
+            <template #icon><IconPlus /></template>新建文件夹
+          </a-button>
+        </aside>
+
+        <main class="material-content">
+          <a-card v-if="currentMaterialFolderId !== 0" class="search-panel folder-search-panel" :bordered="false">
+            <div class="folder-breadcrumb">
+              <a-button type="text" size="small" @click="leaveMaterialFolder"><IconLeft />返回文件夹</a-button>
+              <span class="breadcrumb-divider">/</span>
+              <span class="breadcrumb-current">{{ currentMaterialFolderName }}</span>
+            </div>
+            <a-form v-if="activeMaterialTab === 'AUDIO'" :model="bgmFilters" layout="inline">
+              <a-form-item label="素材名称"><a-input v-model="bgmFilters.keyword" placeholder="名称或文件名" allow-clear /></a-form-item>
+              <a-form-item label="适用视频"><a-select v-model="bgmFilters.videoType" placeholder="全部类型" allow-clear><a-option v-for="item in bgmVideoTypes" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
+              <a-form-item label="情绪氛围"><a-select v-model="bgmFilters.mood" placeholder="全部氛围" allow-clear><a-option v-for="item in bgmMoods" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
+              <a-form-item label="状态"><a-select v-model="bgmFilters.enabled" placeholder="全部状态" allow-clear><a-option :value="true">启用</a-option><a-option :value="false">停用</a-option></a-select></a-form-item>
+            </a-form>
+            <a-form v-else :model="materialFilters" layout="inline">
+              <a-form-item label="素材名称"><a-input v-model="materialFilters.keyword" placeholder="名称、文件名或标签" allow-clear /></a-form-item>
+              <a-form-item label="素材分类"><a-select v-model="materialFilters.category" placeholder="全部分类" allow-clear><a-option v-for="item in activeMaterialMeta.categories" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item>
+              <a-form-item label="状态"><a-select v-model="materialFilters.enabled" placeholder="全部状态" allow-clear><a-option :value="true">启用</a-option><a-option :value="false">停用</a-option></a-select></a-form-item>
+            </a-form>
+            <div class="search-actions"><a-button @click="resetActiveMaterialFilters">重置</a-button><a-button type="primary" @click="loadActiveMaterials">查询</a-button></div>
+          </a-card>
+
+          <a-card class="data-panel" :bordered="false">
+            <div class="panel-toolbar">
+              <div><strong>{{ activeMaterialMeta.label }}管理</strong><span>共 {{ activeMaterialCount }} 条</span></div>
+              <a-button v-if="can(P.bgmCreate) && currentMaterialFolderId !== 0" type="primary" @click="openActiveMaterialEditor">
+                <template #icon><IconPlus /></template>上传{{ activeMaterialMeta.label }}
+              </a-button>
+            </div>
+            <div v-if="currentMaterialFolderId === 0" class="material-folder-grid" v-loading="folderLoading">
+              <div class="material-folder-card" @click="enterMaterialFolder(-1)">
+                <div class="folder-icon"><IconFolder /></div>
+                <div class="folder-info">
+                  <strong>未分类</strong>
+                  <span>{{ uncategorizedMaterialCount }} 个素材</span>
+                </div>
+              </div>
+              <div v-for="folder in materialFolders" :key="folder.id" class="material-folder-card" :class="{ disabled: !folder.enabled }" @click="enterMaterialFolder(folder.id)">
+                <div class="folder-icon"><IconFolder /></div>
+                <div class="folder-info">
+                  <strong>{{ folder.folderName }}</strong>
+                  <span>{{ folder.itemCount }} 个素材 · {{ formatDate(folder.updateTime) }}</span>
+                </div>
+                <a-tag size="small" class="folder-status" :color="folder.enabled ? 'green' : 'gray'">{{ folder.enabled ? '启用' : '停用' }}</a-tag>
+                <a-dropdown trigger="click" @select="(value) => handleFolderAction(folder, String(value))">
+                  <a-button type="text" class="folder-more-btn" aria-label="文件夹操作" @click.stop>
+                    <template #icon><IconMoreVertical /></template>
+                  </a-button>
+                  <template #content>
+                    <a-doption value="toggle" :disabled="!can(P.bgmUpdate)">{{ folder.enabled ? '停用' : '启用' }}</a-doption>
+                    <a-doption value="rename" :disabled="!can(P.bgmUpdate)">重命名</a-doption>
+                    <a-doption value="delete" :disabled="!can(P.bgmDelete) || folder.itemCount > 0">删除</a-doption>
+                  </template>
+                </a-dropdown>
+              </div>
+            </div>
+            <a-table v-else-if="activeMaterialTab === 'AUDIO'" row-key="id" :columns="bgmColumns" :data="activeBgms" :loading="bgmLoading" :scroll="{ x: 1500 }" :pagination="{ pageSize: 10 }">
+              <template #audio="{ record }"><div class="bgm-name"><strong>{{ record.bgmName }}</strong><audio :src="record.fileUrl" controls preload="none" /></div></template>
+              <template #classification="{ record }"><a-space wrap><a-tag color="arcoblue">{{ record.videoType }}</a-tag><a-tag color="purple">{{ record.mood }}</a-tag><a-tag>{{ record.energyLevel }}</a-tag></a-space></template>
+              <template #duration="{ record }">{{ formatBgmDuration(record.durationSeconds) }}</template>
+              <template #copyright="{ record }"><div class="bgm-copyright"><strong>{{ record.copyrightStatus }}</strong><span>{{ record.copyrightNote || '未填写范围说明' }}</span></div></template>
+              <template #enabled="{ record }"><a-tag :color="record.enabled ? 'green' : 'gray'">{{ record.enabled ? '启用' : '停用' }}</a-tag></template>
+              <template #actions="{ record }"><a-space size="mini"><a-link @click="openMoveMaterial(record)">移动</a-link><a-link v-if="can(P.bgmUpdate)" @click="openBgmEditor(record)">编辑</a-link><a-link v-if="can(P.bgmDelete)" status="danger" @click="removeBgm(record)">删除</a-link></a-space></template>
+            </a-table>
+            <a-table v-else row-key="id" :columns="materialColumns" :data="materials" :loading="materialLoading" :scroll="{ x: 1280 }" :pagination="{ pageSize: 10 }">
+              <template #preview="{ record }">
+                <div class="material-preview-cell">
+                  <video v-if="record.materialType === 'VIDEO'" :src="record.fileUrl" preload="metadata" controls />
+                  <img v-else :src="record.fileUrl" :alt="record.materialName" />
+                  <div><strong>{{ record.materialName }}</strong><span>{{ record.originalFileName }}</span></div>
+                </div>
+              </template>
+              <template #classification="{ record }"><a-space wrap><a-tag color="arcoblue">{{ record.category }}</a-tag><a-tag v-for="tag in splitMaterialTags(record.tags)" :key="tag">{{ tag }}</a-tag></a-space></template>
+              <template #fileInfo="{ record }"><div class="material-file-info"><strong>{{ formatFileSize(record.fileSize) }}</strong><span>{{ materialExtension(record.originalFileName) }}</span></div></template>
+              <template #copyright="{ record }"><div class="bgm-copyright"><strong>{{ record.copyrightStatus }}</strong><span>{{ record.copyrightNote || '未填写范围说明' }}</span></div></template>
+              <template #enabled="{ record }"><a-tag :color="record.enabled ? 'green' : 'gray'">{{ record.enabled ? '启用' : '停用' }}</a-tag></template>
+              <template #actions="{ record }"><a-space size="mini"><a-link :href="record.fileUrl" target="_blank">预览</a-link><a-link @click="openMoveMaterial(record)">移动</a-link><a-link v-if="can(P.bgmUpdate)" @click="openMaterialEditor(record)">编辑</a-link><a-link v-if="can(P.bgmDelete)" status="danger" @click="removeMaterial(record)">删除</a-link></a-space></template>
+            </a-table>
+          </a-card>
+        </main>
+      </div>
     </section>
     </template>
 
@@ -240,10 +326,10 @@
       <div class="wizard-shell" @wheel="forwardWizardWheel">
         <div class="wizard-progress">
           <a-steps :current="wizardStep" label-placement="vertical">
-            <a-step title="活动信息" description="设置计划名称与任务类型" />
-            <a-step title="内容配置" description="配置时间、人员和发布内容" />
-            <a-step :title="planForm.type === '半原创' ? '分镜模板' : '拍摄要求'" description="完善员工拍摄执行标准" />
-            <a-step title="确认下发" description="核对配置并创建任务" />
+            <a-step title="计划设置" description="设置计划名称与创作模式" />
+            <a-step title="投放配置" description="配置时间、平台和执行账号" />
+            <a-step title="创作配置" description="完善内容、分镜和素材参考" />
+            <a-step title="检查下发" description="预览配置并创建员工任务" />
           </a-steps>
         </div>
 
@@ -321,19 +407,23 @@
                   </div>
                 </div>
               </a-form-item>
-              <a-form-item label="任务开始时间" required extra="只能选择当前时间到发布日前一天；到达该时间后将通知已下发员工">
-                <a-date-picker
-                  v-model="planForm.taskStartTime"
-                  class="task-start-picker"
-                  size="large"
-                  show-time
-                  format="YYYY-MM-DD HH:mm:ss"
-                  value-format="YYYY-MM-DD HH:mm:ss"
-                  placeholder="请选择任务开始时间"
-                  :disabled-date="disabledTaskStartDate"
-                  :disabled-time="disabledTaskStartTime"
-                  @change="validateTaskStartTime"
-                />
+              <a-form-item label="任务开始时间" required extra="可选择发布时间；勾选“发布即开始”后，任务下发成功即进入开始状态并通知员工">
+                <div class="task-start-setting">
+                  <a-date-picker
+                    v-model="planForm.taskStartTime"
+                    class="task-start-picker"
+                    size="large"
+                    show-time
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    placeholder="请选择任务开始时间"
+                    :disabled="planForm.immediateStart"
+                    :disabled-date="disabledTaskStartDate"
+                    :disabled-time="disabledTaskStartTime"
+                    @change="validateTaskStartTime"
+                  />
+                  <a-checkbox v-model="planForm.immediateStart" @change="handleImmediateStartChange">发布即开始</a-checkbox>
+                </div>
               </a-form-item>
               <a-form-item label="发布账户" required>
                 <div class="account-selector">
@@ -378,27 +468,28 @@
               </a-form-item>
             </a-form>
             <template v-if="planForm.type === '半原创'">
+              <div class="config-stage-tabs" role="tablist" aria-label="分镜配置模块">
+                <button type="button" role="tab" :aria-selected="activeConfigTab === 'basic'" :class="{ active: activeConfigTab === 'basic' }" @click="activeConfigTab = 'basic'">分镜基础设置</button>
+                <button type="button" role="tab" :aria-selected="activeConfigTab === 'content'" :class="{ active: activeConfigTab === 'content' }" @click="activeConfigTab = 'content'">分镜内容</button>
+                <button type="button" role="tab" :aria-selected="activeConfigTab === 'material'" :class="{ active: activeConfigTab === 'material' }" @click="activeConfigTab = 'material'">视频素材参考</button>
+              </div>
               <div class="storyboard-reference-layout">
-                <section class="storyboard-config-panel">
-                  <div class="storyboard-toolbar">
-                    <div><strong>分镜基础设置</strong><span>统一设置分镜数量与画面方向</span></div>
-                    <div class="storyboard-actions">
-                      <label><span>分镜数量</span><a-input-number class="storyboard-count-input" v-model="planForm.storyboardCount" :min="1" :max="8" @change="syncStoryboards" /></label>
-                      <a-button type="outline" :loading="generating" @click="generateScripts"><template #icon><IconRobot /></template>AI生成分镜台词</a-button>
+                <section v-show="activeConfigTab === 'basic'" class="storyboard-config-panel">
+                  <div class="basic-setting-grid">
+                    <div class="storyboard-setting-block">
+                      <div class="setting-label"><strong><i>*</i> 分镜数量</strong><span>最多 8 个</span></div>
+                      <a-input-number class="storyboard-count-input" v-model="planForm.storyboardCount" :min="1" :max="8" @change="syncStoryboards" />
+                    </div>
+                    <div class="storyboard-setting-block">
+                      <div class="setting-label"><strong><i>*</i> 画面方向</strong><span>所有分镜统一使用</span></div>
+                      <a-radio-group v-model="planForm.sampleAspect" type="button" class="aspect-options" @change="handleStoryboardAspectChange">
+                        <a-radio value="portrait">竖版 9:16</a-radio>
+                        <a-radio value="landscape">横版 16:9</a-radio>
+                      </a-radio-group>
                     </div>
                   </div>
-                  <div class="storyboard-setting-block">
-                    <div class="setting-label"><strong><i>*</i> 画面方向</strong><span>所有分镜统一使用</span></div>
-                    <a-radio-group v-model="planForm.sampleAspect" type="button" class="aspect-options" @change="handleStoryboardAspectChange">
-                      <a-radio value="portrait">竖版 9:16</a-radio>
-                      <a-radio value="landscape">横版 16:9</a-radio>
-                    </a-radio-group>
-                  </div>
                 </section>
-                <section class="storyboard-config-panel material-reference-panel">
-                  <div class="storyboard-toolbar">
-                    <div><strong>视频素材参考</strong><span>封面与配乐将同步给员工 App</span></div>
-                  </div>
+                <section v-show="activeConfigTab === 'material'" class="storyboard-config-panel material-reference-panel">
                   <div class="material-reference-fields">
                     <div class="storyboard-setting-block cover-setting-block">
                       <div class="setting-label"><strong>视频封面模板示例</strong><span>选填</span></div>
@@ -414,15 +505,30 @@
                     </div>
                     <div class="storyboard-setting-block bgm-reference-block">
                       <div class="setting-label"><strong>BGM</strong><span>选填 · 仅显示已启用</span></div>
-                      <a-select v-model="planForm.bgmId" allow-clear :loading="planBgmLoading" placeholder="选择基础资料中的 BGM">
+                      <a-select v-model="planForm.bgmIds" multiple allow-clear :max-tag-count="2" :loading="planBgmLoading" placeholder="可选择多个 BGM">
                         <a-option v-for="bgm in planBgmOptions" :key="bgm.id" :value="bgm.id" :label="`${bgm.bgmName} · ${bgm.videoType} / ${bgm.mood}`" />
                       </a-select>
-                      <audio v-if="selectedPlanBgm" class="plan-bgm-audio" :src="selectedPlanBgm.fileUrl" controls preload="none" />
+                    </div>
+                    <div class="storyboard-setting-block voice-reference-block">
+                      <div class="setting-label"><strong>配音</strong><span>选填 · 同步员工 App</span></div>
+                      <a-select v-model="planForm.voiceStyle" allow-clear placeholder="请选择建议配音">
+                        <a-option v-for="voice in voiceStyleOptions" :key="voice" :value="voice">{{ voice }}</a-option>
+                      </a-select>
+                    </div>
+                  </div>
+                  <div v-if="selectedPlanBgms.length" class="selected-bgm-list">
+                    <div v-for="bgm in selectedPlanBgms" :key="bgm.id" class="selected-bgm-item">
+                      <div><strong>{{ bgm.bgmName }}</strong><span>{{ bgm.videoType }} · {{ bgm.mood }} · {{ bgm.energyLevel }}</span></div>
+                      <audio class="plan-bgm-audio" :src="bgm.fileUrl" controls preload="none" />
                     </div>
                   </div>
                 </section>
               </div>
-              <a-tabs v-model:active-key="activeStoryboard" type="card-gutter">
+              <div v-show="activeConfigTab === 'content'" class="storyboard-content-panel">
+                <div class="storyboard-editor-actions">
+                  <a-button type="outline" :loading="generating" @click="generateScripts"><template #icon><IconRobot /></template>AI生成分镜台词</a-button>
+                </div>
+                <a-tabs v-model:active-key="activeStoryboard" type="card-gutter">
                 <a-tab-pane v-for="(storyboard, index) in storyboards" :key="index" :title="`分镜 ${index + 1}`">
                   <a-form :model="storyboard" layout="vertical">
                     <a-grid class="storyboard-editor-grid" :cols="25" :col-gap="28">
@@ -432,6 +538,15 @@
                           <div class="script-field-content">
                             <a-textarea v-model="storyboard.script" placeholder="点击“AI生成分镜台词”一键生成，也可手动修改" :max-length="300" show-word-limit :auto-size="{ minRows: 5 }" />
                             <div class="duration-tip">预计话术时长 {{ estimateDuration(storyboard.script) }} 秒</div>
+                          </div>
+                        </a-form-item>
+                        <a-form-item label="分镜时长要求" required>
+                          <div class="storyboard-duration-range">
+                            <a-input-number v-model="storyboard.minDuration" :min="1" :max="storyboard.maxDuration" :precision="0" hide-button />
+                            <span>秒</span>
+                            <i>～</i>
+                            <a-input-number v-model="storyboard.maxDuration" :min="storyboard.minDuration" :max="300" :precision="0" hide-button />
+                            <span>秒</span>
                           </div>
                         </a-form-item>
                       </a-grid-item>
@@ -458,7 +573,8 @@
                     </a-grid>
                   </a-form>
                 </a-tab-pane>
-              </a-tabs>
+                </a-tabs>
+              </div>
             </template>
             <template v-else>
               <a-alert type="info">原创任务不配置分镜，员工将根据以下要求自主完成短视频创作。</a-alert>
@@ -477,10 +593,13 @@
               <div><span>计划名称</span><strong>{{ planForm.name }}</strong></div>
               <div><span>任务类型</span><strong>{{ planForm.type }}</strong></div>
               <div><span>发布日期</span><strong>{{ planForm.dateRange.join(' 至 ') || '未设置' }}</strong></div>
-              <div><span>任务开始时间</span><strong>{{ planForm.taskStartTime || '未设置' }}</strong></div>
+              <div><span>任务开始时间</span><strong>{{ planForm.immediateStart ? '发布即开始' : (planForm.taskStartTime || '未设置') }}</strong></div>
               <div><span>发布账号</span><strong>{{ selectedPlanAccountIds.length }} 个</strong></div>
               <div><span>发布平台与数量</span><strong>{{ platformQuotaSummary }}</strong></div>
               <div><span>{{ planForm.type === '半原创' ? '分镜数量' : '创作方式' }}</span><strong>{{ planForm.type === '半原创' ? `${planForm.storyboardCount} 个` : '员工原创' }}</strong></div>
+              <div v-if="planForm.type === '半原创'"><span>画面规格</span><strong>{{ sampleAspectText(planForm.sampleAspect) }}</strong></div>
+              <div v-if="planForm.type === '半原创'"><span>分镜内容</span><strong>{{ storyboards.filter((item) => item.requirement && item.script && item.sampleVideoUrl && item.minDuration > 0 && item.maxDuration >= item.minDuration).length }}/{{ planForm.storyboardCount }} 个已完善</strong></div>
+              <div v-if="planForm.type === '半原创'"><span>素材参考</span><strong>封面 {{ planForm.coverExampleUrl ? '已上传' : '未上传' }} · BGM {{ selectedPlanBgms.length }} 个 · 配音 {{ planForm.voiceStyle || '未选择' }}</strong></div>
             </div>
             <a-alert type="warning">提交后将按选定账号创建员工任务。建议确认人员范围、发布日期和分镜内容无误后再下发。</a-alert>
             <div class="confirm-copy"><strong>视频内容描述</strong><p>{{ planForm.description }}</p></div>
@@ -492,7 +611,7 @@
             <a-button v-if="!editingActivityId && can(P.planSave)" type="text" :loading="submitting" @click="saveDraft">保存草稿</a-button>
             <a-space>
               <a-button v-if="wizardStep > 1" @click="wizardStep--">上一步</a-button>
-              <a-button v-if="wizardStep < 4" type="primary" @click="nextWizardStep">下一步</a-button>
+              <a-button v-if="wizardStep < 4" type="primary" @click="nextWizardStep">{{ wizardStep === 3 ? '预览并确认' : '下一步' }}</a-button>
               <a-button v-else-if="editingActivityId ? can(P.planUpdate) : can(P.planPublish)" type="primary" :loading="submitting" @click="submitPlan">{{ editingActivityId ? '保存修改' : '确认并下发' }}</a-button>
             </a-space>
           </div>
@@ -651,19 +770,20 @@
           <a-form-item field="accountType" label="账号类型" required><a-select v-model="accountForm.accountType"><a-option value="蓝V">蓝V</a-option><a-option value="职人">职人</a-option><a-option value="个人">个人</a-option></a-select></a-form-item>
           <a-form-item field="accountName" label="账号名称" required><a-input v-model.trim="accountForm.accountName" :max-length="128" show-word-limit /></a-form-item>
           <a-form-item field="platformAccountId" label="平台账号ID" required><a-input v-model.trim="accountForm.platformAccountId" :max-length="128" /></a-form-item>
+          <a-form-item field="platformHomepageUrl" label="平台主页地址"><a-input v-model.trim="accountForm.platformHomepageUrl" :max-length="500" placeholder="请输入以 http:// 或 https:// 开头的主页地址" /></a-form-item>
           <a-form-item field="employeeId" label="归属员工" required><a-select v-model="accountForm.employeeId" allow-search :loading="employeesLoading" placeholder="请选择已启用且可登录的员工" @change="syncAccountOrganization"><a-option v-for="employee in employees" :key="employee.id" :value="employee.id">{{ employee.displayName }}（{{ employee.employeeNumber || employee.username }}）</a-option></a-select></a-form-item>
           <a-alert class="account-status-tip" type="info">账号保存后状态为“待校验”。接入对应开放平台后，系统将根据授权或接口校验结果自动更新状态。</a-alert>
         </div>
       </a-form>
     </a-modal>
 
-    <a-drawer v-model:visible="bgmEditorVisible" :title="bgmEditingId ? '编辑BGM' : '上传BGM'" :width="720" :ok-loading="bgmSaving" @ok="saveBgm">
+    <a-drawer v-model:visible="bgmEditorVisible" :title="bgmEditingId ? '编辑音频素材' : '上传音频素材'" :width="720" :ok-loading="bgmSaving" @ok="saveBgm">
       <a-alert type="info">按视频用途、情绪氛围和节奏强度分类，便于运营人员检索，也便于后续由 AI 自动推荐配乐。</a-alert>
       <a-form ref="bgmFormRef" :model="bgmForm" layout="vertical" class="bgm-form">
         <a-form-item label="音频文件" required>
           <a-upload :auto-upload="false" :limit="1" accept=".mp3,.wav,.m4a,audio/*" @change="handleBgmFile"><template #upload-button><a-button :loading="bgmUploading"><IconUpload /> {{ bgmForm.originalFileName || '选择音频文件' }}</a-button></template></a-upload>
         </a-form-item>
-        <a-form-item field="bgmName" label="BGM名称" required :rules="[{ required: true, message: '请输入BGM名称' }]"><a-input v-model="bgmForm.bgmName" :max-length="128" /></a-form-item>
+        <a-form-item field="bgmName" label="素材名称" required :rules="[{ required: true, message: '请输入素材名称' }]"><a-input v-model="bgmForm.bgmName" :max-length="128" /></a-form-item>
         <a-grid :cols="2" :col-gap="16">
           <a-grid-item><a-form-item field="videoType" label="适用视频类型" required :rules="[{ required: true, message: '请选择视频类型' }]"><a-select v-model="bgmForm.videoType"><a-option v-for="item in bgmVideoTypes" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
           <a-grid-item><a-form-item field="mood" label="情绪氛围" required :rules="[{ required: true, message: '请选择情绪氛围' }]"><a-select v-model="bgmForm.mood"><a-option v-for="item in bgmMoods" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
@@ -678,6 +798,64 @@
       </a-form>
     </a-drawer>
 
+    <a-drawer v-model:visible="materialEditorVisible" :title="materialEditingId ? `编辑${activeMaterialMeta.label}` : `上传${activeMaterialMeta.label}`" :width="680" :ok-loading="materialSaving" @ok="saveMaterial">
+      <a-alert type="info">素材上传后可按分类和标签检索，并用于后续的视频创作与复用。</a-alert>
+      <a-form ref="materialFormRef" :model="materialForm" layout="vertical" class="material-form">
+        <a-form-item label="素材文件" required>
+          <a-upload :auto-upload="false" :limit="1" :accept="activeMaterialMeta.accept" @change="handleMaterialFile">
+            <template #upload-button><a-button :loading="materialUploading"><IconUpload /> {{ materialForm.originalFileName || `选择${activeMaterialMeta.label}` }}</a-button></template>
+          </a-upload>
+          <div class="form-helper">{{ activeMaterialMeta.uploadHint }}</div>
+        </a-form-item>
+        <a-form-item field="materialName" label="素材名称" required :rules="[{ required: true, message: '请输入素材名称' }]">
+          <a-input v-model="materialForm.materialName" :max-length="128" show-word-limit />
+        </a-form-item>
+        <a-grid :cols="2" :col-gap="16">
+          <a-grid-item><a-form-item field="category" label="素材分类" required :rules="[{ required: true, message: '请选择素材分类' }]"><a-select v-model="materialForm.category"><a-option v-for="item in activeMaterialMeta.categories" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+          <a-grid-item><a-form-item label="版权状态" required><a-select v-model="materialForm.copyrightStatus"><a-option v-for="item in bgmCopyrightStatuses" :key="item" :value="item">{{ item }}</a-option></a-select></a-form-item></a-grid-item>
+        </a-grid>
+        <a-form-item label="素材标签"><a-input v-model="materialForm.tags" placeholder="多个标签用逗号分隔，如：中秋, 门店, 礼盒" :max-length="500" /></a-form-item>
+        <a-form-item label="素材说明"><a-textarea v-model="materialForm.description" :max-length="1000" show-word-limit placeholder="说明内容、场景和推荐用途" /></a-form-item>
+        <a-form-item label="版权及商用范围说明"><a-textarea v-model="materialForm.copyrightNote" :max-length="255" show-word-limit /></a-form-item>
+        <a-form-item label="状态"><a-switch v-model="materialForm.enabled" checked-text="启用" unchecked-text="停用" /></a-form-item>
+      </a-form>
+    </a-drawer>
+
+    <a-modal v-model:visible="folderEditorVisible" :title="folderEditingId ? '重命名文件夹' : '新建文件夹'" width="480px" :ok-loading="folderSaving" @ok="saveMaterialFolder">
+      <a-form ref="folderFormRef" :model="folderForm" layout="vertical">
+        <a-form-item field="folderName" label="文件夹名称" required :rules="[{ required: true, message: '请输入文件夹名称' }, { maxLength: 128, message: '最多128个字符' }]">
+          <a-input v-model="folderForm.folderName" :max-length="128" show-word-limit placeholder="例如：产品主图" />
+        </a-form-item>
+        <a-grid :cols="2" :col-gap="16">
+          <a-grid-item>
+            <a-form-item field="enabled" label="状态">
+              <a-radio-group v-model="folderForm.enabled">
+                <a-radio :value="true">启用</a-radio>
+                <a-radio :value="false">停用</a-radio>
+              </a-radio-group>
+            </a-form-item>
+          </a-grid-item>
+          <a-grid-item>
+            <a-form-item field="sortOrder" label="排序">
+              <a-input-number v-model="folderForm.sortOrder" :min="0" :max="9999" placeholder="数值越小越靠前" />
+            </a-form-item>
+          </a-grid-item>
+        </a-grid>
+      </a-form>
+    </a-modal>
+
+    <a-modal v-model:visible="moveVisible" title="移动素材" width="440px" :ok-loading="moving" @ok="confirmMoveMaterial">
+      <a-alert type="info">将素材移动到其他文件夹，移动后可在目标文件夹中查看。</a-alert>
+      <a-form :model="moveForm" layout="vertical" class="move-form">
+        <a-form-item label="目标文件夹" required>
+          <a-select v-model="moveForm.folderId">
+            <a-option :value="0">未分类</a-option>
+            <a-option v-for="folder in moveFolderOptions" :key="folder.id" :value="folder.id">{{ folder.folderName }}</a-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <a-modal v-model:visible="importVisible" title="导入账号" width="620px" :ok-loading="accountImporting" @ok="finishImport">
       <a-alert type="info">请按模板填写平台、账号名称、平台账号ID、账号类型和员工工号。导入后统一进入“待校验”状态。</a-alert>
       <a-button type="text" @click="downloadAccountTemplate"><IconDownload /> 下载导入模板.csv</a-button>
@@ -687,23 +865,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { Message, Modal, type FormInstance, type TableColumnData } from '@arco-design/web-vue';
 import {
-  IconArrowRise, IconDownload, IconLeft, IconPlus, IconRefresh, IconRight, IconRobot, IconSearch,
+  IconArrowRise, IconDownload, IconFolder, IconLeft, IconMoreVertical, IconPlus, IconRefresh, IconRight, IconRobot, IconSearch,
   IconUpload, IconVideoCamera
 } from '@arco-design/web-vue/es/icon';
 import {
-  createContentAccount, createContentActivity, createContentPlan, createContentBgm, deleteContentAccounts, deleteContentActivity, deleteContentBgm,
+  createContentAccount, createContentActivity, createContentPlan, createContentBgm, createContentMaterial, createContentMaterialFolder, deleteContentAccounts, deleteContentActivity, deleteContentBgm, deleteContentMaterial, deleteContentMaterialFolder,
   fetchActivityPlans, fetchContentAccounts, fetchContentActivities, fetchContentDeliveryTasks,
   downloadPersonnelImportTemplate, fetchContentAccountOrganizations, fetchContentAccountUsers,
-  fetchContentTaskOrganizations, fetchContentTaskUsers, fetchContentVideoPerformance, generateContentStoryboardScripts,
+  fetchContentMaterialFolders, fetchContentTaskOrganizations, fetchContentTaskUsers, fetchContentVideoPerformance, generateContentStoryboardScripts,
   generateContentShootingRequirement, generateContentVideoDescription, importContentAccounts,
-  pauseContentActivity, publishContentPlan, resumeContentActivity, terminateContentActivity, updateContentAccount, updateContentActivity,
-  fetchContentBgms, updateContentBgm, uploadContentBgm, uploadContentSampleCover, uploadContentSampleVideo, validatePersonnelImport
+  moveContentMaterial, pauseContentActivity, publishContentPlan, resumeContentActivity, terminateContentActivity, updateContentAccount, updateContentActivity,
+  fetchContentBgms, fetchContentMaterials, moveContentBgm, updateContentBgm, updateContentMaterial, updateContentMaterialFolder, uploadContentBgm, uploadContentMaterial, uploadContentSampleCover, uploadContentSampleVideo, validatePersonnelImport
 } from '@tql-store/api';
 import { usePermission } from '@tql-store/auth';
-import type { ContentAccountItem, ContentAccountPayload, ContentBgmItem, ContentBgmPayload, ContentDeliveryItem, ContentVideoPerformanceItem, OrganizationOption, PersonnelImportResult, UserItem } from '@tql-store/shared';
+import type { ContentAccountItem, ContentAccountPayload, ContentBgmItem, ContentBgmPayload, ContentDeliveryItem, ContentMaterialFolderItem, ContentMaterialFolderPayload, ContentMaterialFolderType, ContentMaterialItem, ContentMaterialPayload, ContentMaterialType, ContentVideoPerformanceItem, OrganizationOption, PersonnelImportResult, UserItem } from '@tql-store/shared';
 import OrganizationCollapseNode from '../components/OrganizationCollapseNode.vue';
 
 type ModuleKey = 'plans' | 'calendar' | 'analytics' | 'accounts' | 'bgm';
@@ -784,7 +962,15 @@ const submitting = ref(false);
 const filters = reactive({ type: '', keyword: '', status: '', owner: '', dateRange: [] as string[] });
 const appliedFilters = reactive({ ...filters });
 const backendPlans = ref<PlanRow[]>([]);
-const allPlans = computed(() => backendPlans.value);
+const statusClock = ref(Date.now());
+let statusClockTimer: ReturnType<typeof setInterval> | undefined;
+const allPlans = computed(() => backendPlans.value.map(plan => {
+  const waiting = plan.rawStatus === 'ACTIVE' && new Date(plan.startTime).getTime() > statusClock.value;
+  const statusMeta = waiting
+    ? { label: '待开始', tone: 'draft' as CalendarTone }
+    : activityStatusMeta[plan.rawStatus || ''] || { label: plan.rawStatus || plan.status, tone: 'draft' as CalendarTone };
+  return { ...plan, status: statusMeta.label, tone: statusMeta.tone };
+}));
 const visiblePlans = computed(() => allPlans.value.filter(plan =>
   (!appliedFilters.type || plan.type === appliedFilters.type) &&
   (!appliedFilters.keyword || plan.name.includes(appliedFilters.keyword)) &&
@@ -806,10 +992,7 @@ async function loadPlans() {
   try {
     const rows = await fetchContentActivities();
     backendPlans.value = rows.map(item => {
-      const waiting = item.status === 'ACTIVE' && new Date(item.startTime).getTime() > Date.now();
-      const statusMeta = waiting
-        ? { label: '待开始', tone: 'draft' as CalendarTone }
-        : activityStatusMeta[item.status] || { label: item.status, tone: 'draft' as CalendarTone };
+      const statusMeta = activityStatusMeta[item.status] || { label: item.status, tone: 'draft' as CalendarTone };
       return {
         id: item.id, type: item.creationMode === 'SELF_CREATED' ? '原创' : '半原创', name: item.name,
         owner: item.ownerName, status: statusMeta.label,
@@ -879,8 +1062,8 @@ const planForm = reactive({
   name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [] as string[], accountMode: '账号',
   employeeCount: 0, platforms: ['抖音'] as PublishPlatform[], platformQuotas: createPlatformQuotas(), sampleAspect: 'portrait' as 'portrait' | 'landscape',
   coverExampleUrl: '', coverExampleName: '', coverUploading: false,
-  bgmId: undefined as number | undefined,
-  description: '', taskCopy: '', topic: '', title: '', taskStartTime: '',
+  bgmIds: [] as number[], voiceStyle: '',
+  description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', immediateStart: false,
   storyboardCount: 3, originalRequirement: ''
 });
 const topicInput = ref('');
@@ -931,6 +1114,8 @@ function parseTopics(value: string) {
 type StoryboardDraft = {
   requirement: string;
   script: string;
+  minDuration: number;
+  maxDuration: number;
   sampleVideoUrl?: string;
   sampleVideoName?: string;
   sampleAspect?: 'portrait' | 'landscape' | '';
@@ -939,6 +1124,8 @@ type StoryboardDraft = {
 const emptyStoryboard = (): StoryboardDraft => ({
   requirement: '',
   script: '',
+  minDuration: 5,
+  maxDuration: 15,
   sampleVideoUrl: '',
   sampleVideoName: '',
   sampleAspect: 'portrait',
@@ -946,6 +1133,7 @@ const emptyStoryboard = (): StoryboardDraft => ({
 });
 const storyboards = ref<StoryboardDraft[]>([emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]);
 const activeStoryboard = ref(0);
+const activeConfigTab = ref<'basic' | 'content' | 'material'>('basic');
 const generating = ref(false);
 const descriptionAiVisible = ref(false);
 const descriptionPrompt = ref('');
@@ -953,7 +1141,10 @@ const generatingDescription = ref(false);
 const generatingShootingRequirement = ref(false);
 const planBgmOptions = ref<ContentBgmItem[]>([]);
 const planBgmLoading = ref(false);
-const selectedPlanBgm = computed(() => planBgmOptions.value.find(item => item.id === planForm.bgmId));
+const selectedPlanBgms = computed(() => planForm.bgmIds
+  .map(id => planBgmOptions.value.find(item => item.id === id))
+  .filter((item): item is ContentBgmItem => Boolean(item)));
+const voiceStyleOptions = ['自然女声', '温柔女声', '活力女声', '知性女声', '沉稳男声', '磁性男声', '活力男声', '新闻播报'];
 async function loadPlanBgmOptions() {
   planBgmLoading.value = true;
   try { planBgmOptions.value = await fetchContentBgms({ enabled: true }); }
@@ -968,7 +1159,7 @@ function forwardWizardWheel(event: WheelEvent) {
   if (!shell || !content || content.contains(event.target as Node)) return;
   content.scrollTop += event.deltaY;
 }
-function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '账号', employeeCount: 0, platforms: ['抖音'] as PublishPlatform[], platformQuotas: createPlatformQuotas(), sampleAspect: 'portrait', coverExampleUrl: '', coverExampleName: '', coverUploading: false, bgmId: undefined, description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; selectedEmployeeIds.value = []; selectedPlanAccountIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
+function resetPlanForm() { Object.assign(planForm, { name: '', deliveryMode: '员工任务', type: '半原创', dateRange: [], accountMode: '账号', employeeCount: 0, platforms: ['抖音'] as PublishPlatform[], platformQuotas: createPlatformQuotas(), sampleAspect: 'portrait', coverExampleUrl: '', coverExampleName: '', coverUploading: false, bgmIds: [] as number[], voiceStyle: '', description: '', taskCopy: '', topic: '', title: '', taskStartTime: '', immediateStart: false, storyboardCount: 3, originalRequirement: '' }); topicInput.value = ''; topicList.value = []; activeConfigTab.value = 'basic'; activeStoryboard.value = 0; selectedEmployeeIds.value = []; selectedPlanAccountIds.value = []; importedPersonnelDetails.value = {}; storyboards.value = [emptyStoryboard(), emptyStoryboard(), emptyStoryboard()]; }
 function instructionValue(lines: string[], label: string) {
   return lines.find(line => line.startsWith(`${label}：`))?.slice(label.length + 1) || '';
 }
@@ -1017,6 +1208,8 @@ async function openEdit(record: PlanRow) {
             ...emptyStoryboard(),
             requirement,
             script: values['台词'] || '',
+            minDuration: Number(values['时长要求']?.match(/^(\d+)/)?.[1]) || 5,
+            maxDuration: Number(values['时长要求']?.match(/～(\d+)/)?.[1]) || 15,
             sampleVideoUrl: values['样例视频'] || '',
             sampleVideoName: values['样例视频'] ? '已上传样例视频' : '',
             sampleAspect: normalizeSampleAspect(values['样例比例']) || 'portrait'
@@ -1028,6 +1221,7 @@ async function openEdit(record: PlanRow) {
       type: plan.creationMode === 'SELF_CREATED' ? '原创' : '半原创',
       dateRange: [record.startDate, record.endDate],
       taskStartTime: record.startTime.replace('T', ' ').slice(0, 19),
+      immediateStart: instructionValue(lines, '发布即开始') === '是',
       accountMode: '账号',
       employeeCount: new Set(personnel.map(item => item.employeeId)).size,
       platforms: platforms.length ? platforms : ['抖音'],
@@ -1035,7 +1229,9 @@ async function openEdit(record: PlanRow) {
       sampleAspect: parsedStoryboards[0]?.sampleAspect || 'portrait',
       coverExampleUrl: instructionValue(lines, '视频封面示例'),
       coverExampleName: instructionValue(lines, '视频封面示例') ? '已上传视频封面示例' : '',
-      bgmId: Number(instructionValue(lines, '参考BGM ID')) || undefined,
+      bgmIds: (instructionValue(lines, '参考BGM IDs') || instructionValue(lines, '参考BGM ID'))
+        .split(/[、,，]/).map(Number).filter(id => Number.isInteger(id) && id > 0),
+      voiceStyle: instructionValue(lines, '建议配音'),
       description: record.objective || '',
       taskCopy: lines[0] || '',
       topic: instructionValue(lines, '发布话题'),
@@ -1181,6 +1377,7 @@ function disabledTaskStartTime(date?: Date) {
   };
 }
 function taskStartIsValid() {
+  if (planForm.immediateStart) return true;
   if (!planForm.taskStartTime) return false;
   if (editingActivityId.value) return true;
   const value = new Date(planForm.taskStartTime.replace(' ', 'T'));
@@ -1188,6 +1385,15 @@ function taskStartIsValid() {
   return !Number.isNaN(value.getTime())
     && value.getTime() >= min.getTime()
     && (!max || value.getTime() <= max.getTime());
+}
+function handleImmediateStartChange(checked: boolean | (string | number | boolean)[]) {
+  if (checked === true) {
+    planForm.taskStartTime = '';
+    return;
+  }
+  if (planForm.dateRange.length && !planForm.taskStartTime) {
+    planForm.taskStartTime = formatLocalDateTime(new Date(Date.now() + 60 * 60 * 1000));
+  }
 }
 function validateTaskStartTime() {
   if (!planForm.taskStartTime || taskStartIsValid()) return;
@@ -1208,7 +1414,7 @@ function validateReleaseDateSelection() {
     Message.warning('为确保流程正常进行，发布日期必须大于当前时间3天');
     return;
   }
-  if (!planForm.taskStartTime) {
+  if (!planForm.immediateStart && !planForm.taskStartTime) {
     const defaultStart = new Date(Date.now() + 60 * 60 * 1000);
     planForm.taskStartTime = formatLocalDateTime(defaultStart);
   }
@@ -1310,11 +1516,12 @@ function sampleAspectText(value?: string) {
   return value === 'landscape' ? '横版 16:9' : '竖版 9:16';
 }
 function storyboardValidationMessage() {
-  const index = storyboards.value.findIndex(item => !item.requirement || !item.script || !item.sampleVideoUrl);
+  const index = storyboards.value.findIndex(item => !item.requirement || !item.script || !item.sampleVideoUrl || !Number.isInteger(item.minDuration) || !Number.isInteger(item.maxDuration) || item.minDuration < 1 || item.maxDuration < item.minDuration);
   if (index < 0) return '';
   const storyboard = storyboards.value[index];
   const missing = [
     !storyboard.requirement && '拍摄要求',
+    (!Number.isInteger(storyboard.minDuration) || !Number.isInteger(storyboard.maxDuration) || storyboard.minDuration < 1 || storyboard.maxDuration < storyboard.minDuration) && '分镜时长要求',
     !storyboard.script && '分镜台词',
     !storyboard.sampleVideoUrl && '样例视频'
   ].filter(Boolean).join('、');
@@ -1347,6 +1554,7 @@ function nextWizardStep() {
     }
     const storyboardError = planForm.type === '半原创' ? storyboardValidationMessage() : '';
     if (storyboardError) {
+      activeConfigTab.value = 'content';
       Message.warning(storyboardError);
       return;
     }
@@ -1365,7 +1573,7 @@ function validatePlan() {
   if (!platformQuotasAreValid()) { Message.warning('请完善每个平台的视频条数配置'); return false; }
   if (!selectedEmployeeIds.value.length) { Message.warning(planForm.accountMode === '账号' ? '请至少选择一个发布账号' : '请至少选择一名员工'); return false; }
   const storyboardError = planForm.type === '半原创' ? storyboardValidationMessage() : '';
-  if (storyboardError) { Message.warning(storyboardError); return false; }
+  if (storyboardError) { activeConfigTab.value = 'content'; Message.warning(storyboardError); return false; }
   return true;
 }
 function toLocalDateTime(date: string, end = false) { return `${date}T${end ? '23:59:59' : '00:00:00'}`; }
@@ -1378,6 +1586,7 @@ function platformQuotasAreValid() {
 function buildTaskInstruction() {
   return [
     planForm.description,
+    planForm.immediateStart && '发布即开始：是',
     planForm.topic && `发布话题：${planForm.topic}`,
     `发布平台：${planForm.platforms.join('、')}`,
     `平台发布配置：${planForm.platforms.map(platform => {
@@ -1386,14 +1595,16 @@ function buildTaskInstruction() {
     }).join('、')}`,
     planForm.type === '半原创' && planForm.coverExampleUrl && `视频封面示例：${planForm.coverExampleUrl}`,
     planForm.type === '半原创' && planForm.coverExampleUrl && `视频封面比例：${sampleAspectText(planForm.sampleAspect)}`,
-    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM ID：${selectedPlanBgm.value.id}`,
-    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM名称：${selectedPlanBgm.value.bgmName}`,
-    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM地址：${selectedPlanBgm.value.fileUrl}`,
-    planForm.type === '半原创' && selectedPlanBgm.value && `参考BGM分类：${selectedPlanBgm.value.videoType} / ${selectedPlanBgm.value.mood}`,
+    planForm.type === '半原创' && planForm.voiceStyle && `建议配音：${planForm.voiceStyle}`,
+    planForm.type === '半原创' && selectedPlanBgms.value.length && `参考BGM IDs：${selectedPlanBgms.value.map(item => item.id).join('、')}`,
+    ...(planForm.type === '半原创'
+      ? selectedPlanBgms.value.map((item, index) => `参考BGM ${index + 1}：${item.bgmName}｜${item.fileUrl}｜${item.videoType} / ${item.mood}`)
+      : []),
     planForm.type === '原创'
       ? `拍摄要求：${planForm.originalRequirement}`
       : `分镜要求：${storyboards.value.map((item, index) => [
         `${index + 1}.${item.requirement}`,
+        `时长要求：${item.minDuration}～${item.maxDuration}秒`,
         `台词：${item.script}`,
         item.sampleVideoUrl && `样例视频：${item.sampleVideoUrl}`,
         `样例比例：${sampleAspectText(planForm.sampleAspect)}`
@@ -1403,6 +1614,9 @@ function buildTaskInstruction() {
 async function persistPlan(publish: boolean, commitEdit = false) {
   const [startDate, endDate] = planForm.dateRange;
   const taskInstruction = buildTaskInstruction();
+  const effectiveStartTime = planForm.immediateStart
+    ? formatLocalDateTime(new Date(Date.now() + (publish ? 5000 : 60 * 60 * 1000)))
+    : planForm.taskStartTime;
   if (editingActivityId.value) {
     if (!commitEdit || wizardStep.value !== 4) {
       throw new Error('编辑内容尚未到最终确认步骤，不能更新计划');
@@ -1410,7 +1624,7 @@ async function persistPlan(publish: boolean, commitEdit = false) {
     await updateContentActivity(editingActivityId.value, {
       name: planForm.name,
       objective: planForm.description,
-      startTime: planForm.taskStartTime.replace(' ', 'T'),
+      startTime: effectiveStartTime.replace(' ', 'T'),
       releaseStartTime: toLocalDateTime(startDate),
       endTime: toLocalDateTime(endDate, true),
       taskInstruction,
@@ -1425,7 +1639,7 @@ async function persistPlan(publish: boolean, commitEdit = false) {
   const activityId = await createContentActivity({
     name: planForm.name,
     objective: planForm.description,
-    startTime: planForm.taskStartTime.replace(' ', 'T'),
+    startTime: effectiveStartTime.replace(' ', 'T'),
     releaseStartTime: toLocalDateTime(startDate),
     endTime: toLocalDateTime(endDate, true)
   });
@@ -1662,14 +1876,15 @@ const bgmEditingId = ref<number>();
 const bgmSaving = ref(false);
 const bgmUploading = ref(false);
 const bgmFormRef = ref<FormInstance>();
-const emptyBgmForm = (): ContentBgmPayload => ({
-  bgmName: '', fileUrl: '', originalFileName: '', videoType: '', mood: '', energyLevel: '适中',
+const emptyBgmForm = (folderId = 0): ContentBgmPayload => ({
+  bgmName: '', fileUrl: '', originalFileName: '', folderId,
+  videoType: '', mood: '', energyLevel: '适中',
   vocalType: '纯音乐', bpm: undefined, durationSeconds: undefined, copyrightStatus: '版权待确认',
   copyrightNote: '', enabled: true
 });
 const bgmForm = reactive<ContentBgmPayload>(emptyBgmForm());
 const bgmColumns: TableColumnData[] = [
-  { title: 'BGM名称 / 试听', slotName: 'audio', width: 300 },
+  { title: '素材名称 / 试听', slotName: 'audio', width: 300 },
   { title: '分类标签', slotName: 'classification', width: 280 },
   { title: '人声', dataIndex: 'vocalType', width: 100 },
   { title: 'BPM', dataIndex: 'bpm', width: 80 },
@@ -1692,11 +1907,11 @@ function resetBgmFilters() {
 function openBgmEditor(record?: ContentBgmItem) {
   bgmEditingId.value = record?.id;
   Object.assign(bgmForm, record ? {
-    bgmName: record.bgmName, fileUrl: record.fileUrl, originalFileName: record.originalFileName,
+    bgmName: record.bgmName, fileUrl: record.fileUrl, originalFileName: record.originalFileName, folderId: record.folderId,
     videoType: record.videoType, mood: record.mood, energyLevel: record.energyLevel,
     vocalType: record.vocalType, bpm: record.bpm, durationSeconds: record.durationSeconds,
     copyrightStatus: record.copyrightStatus, copyrightNote: record.copyrightNote || '', enabled: record.enabled
-  } : emptyBgmForm());
+  } : emptyBgmForm(currentMaterialFolderId.value === -1 ? 0 : Math.max(currentMaterialFolderId.value, 0)));
   bgmEditorVisible.value = true;
 }
 async function handleBgmFile(...args: unknown[]) {
@@ -1736,10 +1951,308 @@ function formatBgmDuration(seconds?: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+type MaterialTab = ContentMaterialType | 'AUDIO';
+const activeMaterialTab = ref<MaterialTab>('VIDEO');
+const materialTypes: Array<{ value: MaterialTab; label: string }> = [
+  { value: 'VIDEO', label: '视频素材' },
+  { value: 'AUDIO', label: '音频素材' },
+  { value: 'IMAGE', label: '图片素材' }
+];
+const materialMeta: Record<MaterialTab, { label: string; accept: string; uploadHint: string; categories: string[] }> = {
+  VIDEO: { label: '视频素材', accept: '.mp4,video/mp4', uploadHint: '支持 MP4，单个文件不超过 200MB', categories: ['产品展示', '门店环境', '人物出镜', '制作过程', '活动现场', '通用空镜'] },
+  AUDIO: { label: '音频素材', accept: '.mp3,.wav,.m4a,audio/*', uploadHint: '支持 MP3、WAV、M4A，单个文件不超过 50MB', categories: bgmVideoTypes },
+  IMAGE: { label: '图片素材', accept: '.jpg,.jpeg,.png,.webp,image/*', uploadHint: '支持 JPG、PNG、WEBP，单个文件不超过 10MB', categories: ['产品主图', '门店环境', '人物形象', '活动海报', '品牌元素', '视频封面'] }
+};
+const activeMaterialMeta = computed(() => materialMeta[activeMaterialTab.value]);
+const materialFilters = reactive<{ keyword: string; category: string; enabled?: boolean }>({ keyword: '', category: '', enabled: undefined });
+const materialsByType = reactive<Record<ContentMaterialType, ContentMaterialItem[]>>({ VIDEO: [], IMAGE: [] });
+const materials = computed(() => {
+  if (activeMaterialTab.value === 'AUDIO') return [];
+  const list = materialsByType[activeMaterialTab.value];
+  if (currentMaterialFolderId.value === 0) return list;
+  if (currentMaterialFolderId.value === -1) return list.filter(m => m.folderId === 0);
+  return list.filter(m => m.folderId === currentMaterialFolderId.value);
+});
+const materialLoading = ref(false);
+const materialEditorVisible = ref(false);
+const materialEditingId = ref<number>();
+const materialSaving = ref(false);
+const materialUploading = ref(false);
+const materialFormRef = ref<FormInstance>();
+const currentMaterialFolderId = ref<number>(0);
+const materialFolders = ref<ContentMaterialFolderItem[]>([]);
+const allMaterialFolders = ref<ContentMaterialFolderItem[]>([]);
+const folderKeyword = ref('');
+const folderLoading = ref(false);
+const folderEditorVisible = ref(false);
+const folderEditingId = ref<number>();
+const folderSaving = ref(false);
+const folderFormRef = ref<FormInstance>();
+const moveVisible = ref(false);
+const moving = ref(false);
+const moveForm = reactive({ folderId: 0 });
+const movingRecord = ref<{ id: number; type: MaterialTab }>();
+const moveFolderOptions = computed(() => materialFolders.value.filter(folder => folder.id !== currentMaterialFolderId.value));
+const folderForm = reactive<ContentMaterialFolderPayload>({
+  folderName: '', materialType: 'VIDEO', parentId: 0, enabled: true, sortOrder: 0
+});
+const currentMaterialFolderName = computed(() => {
+  if (currentMaterialFolderId.value === -1 || currentMaterialFolderId.value === 0) return '未分类';
+  return materialFolders.value.find(f => f.id === currentMaterialFolderId.value)?.folderName || '文件夹';
+});
+const uncategorizedMaterialCount = computed(() => {
+  if (activeMaterialTab.value === 'AUDIO') return bgms.value.filter(m => m.folderId === 0).length;
+  return materialsByType[activeMaterialTab.value].filter(m => m.folderId === 0).length;
+});
+const emptyMaterialForm = (type: ContentMaterialType): ContentMaterialPayload => ({
+  materialName: '', materialType: type, folderId: Math.max(currentMaterialFolderId.value, 0), fileUrl: '', originalFileName: '', fileSize: 0,
+  category: '', tags: '', description: '', copyrightStatus: '版权待确认', copyrightNote: '', enabled: true
+});
+const materialForm = reactive<ContentMaterialPayload>(emptyMaterialForm('VIDEO'));
+const activeBgms = computed(() => {
+  if (currentMaterialFolderId.value === 0) return bgms.value;
+  const folderId = currentMaterialFolderId.value === -1 ? 0 : currentMaterialFolderId.value;
+  return bgms.value.filter(m => m.folderId === folderId);
+});
+const activeMaterialCount = computed(() => {
+  if (activeMaterialTab.value === 'AUDIO') return activeBgms.value.length;
+  return materials.value.length;
+});
+const materialColumns: TableColumnData[] = [
+  { title: '素材名称 / 预览', slotName: 'preview', width: 360, fixed: 'left' },
+  { title: '分类标签', slotName: 'classification', width: 260 },
+  { title: '文件信息', slotName: 'fileInfo', width: 130 },
+  { title: '版权信息', slotName: 'copyright', width: 240 },
+  { title: '状态', slotName: 'enabled', width: 90 },
+  { title: '更新时间', dataIndex: 'updateTime', width: 180 },
+  { title: '操作', slotName: 'actions', width: 160, fixed: 'right' }
+];
+function materialCount(type: MaterialTab) {
+  return type === 'AUDIO' ? bgms.value.length : materialsByType[type].length;
+}
+function uncategorizedCountFor(type: MaterialTab) {
+  if (type === 'AUDIO') return bgms.value.filter(m => m.folderId === 0).length;
+  return materialsByType[type].filter(m => m.folderId === 0).length;
+}
+type MaterialTreeNode = { key: string; title: string; children?: MaterialTreeNode[]; isLeaf?: boolean };
+const materialTreeData = computed<MaterialTreeNode[]>(() =>
+  materialTypes.map(t => {
+    const rootFolders = allMaterialFolders.value.filter(f => f.materialType === t.value && f.parentId === 0);
+    const children: MaterialTreeNode[] = [
+      { key: `UNCAT:${t.value}`, title: `未分类 (${uncategorizedCountFor(t.value)})`, isLeaf: true },
+      ...rootFolders.map(f => ({ key: `FOLDER:${f.id}`, title: f.folderName, isLeaf: true }))
+    ];
+    return { key: `TYPE:${t.value}`, title: `${t.label} (${materialCount(t.value)})`, children };
+  })
+);
+const materialTreeSelectedKeys = computed<Array<string | number>>(() => {
+  if (currentMaterialFolderId.value === 0) return [`TYPE:${activeMaterialTab.value}`];
+  if (currentMaterialFolderId.value === -1) return [`UNCAT:${activeMaterialTab.value}`];
+  return [`FOLDER:${currentMaterialFolderId.value}`];
+});
+function onMaterialTreeSelect(keys: Array<string | number>) {
+  const key = String(keys[0] ?? '');
+  if (!key) return;
+  let targetType: MaterialTab | undefined;
+  let targetFolderId = 0;
+  if (key.startsWith('TYPE:')) {
+    targetType = key.slice(5) as MaterialTab;
+    targetFolderId = 0;
+  } else if (key.startsWith('UNCAT:')) {
+    targetType = key.slice(6) as MaterialTab;
+    targetFolderId = -1;
+  } else if (key.startsWith('FOLDER:')) {
+    const folderId = Number(key.slice(7));
+    const folder = allMaterialFolders.value.find(f => f.id === folderId);
+    targetType = (folder?.materialType as MaterialTab) ?? activeMaterialTab.value;
+    targetFolderId = folderId;
+  }
+  if (!targetType) return;
+  if (targetType !== activeMaterialTab.value) {
+    activeMaterialTab.value = targetType; // watch 会在下一个 tick 重置为根视图并加载
+    void nextTick(() => enterMaterialFolder(targetFolderId));
+  } else {
+    enterMaterialFolder(targetFolderId);
+  }
+}
+async function loadMaterialFolders(type: ContentMaterialFolderType) {
+  folderLoading.value = true;
+  try {
+    allMaterialFolders.value = await fetchContentMaterialFolders(type, { keyword: folderKeyword.value.trim() || undefined });
+    materialFolders.value = allMaterialFolders.value.filter(f => f.parentId === 0);
+  }
+  catch (error) { Message.error(error instanceof Error ? error.message : '文件夹加载失败'); }
+  finally { folderLoading.value = false; }
+}
+function reloadMaterialFolders() {
+  void loadMaterialFolders(activeMaterialTab.value as ContentMaterialFolderType);
+}
+async function loadMaterialType(type: ContentMaterialType) {
+  if (currentMaterialFolderId.value === 0) await loadMaterialFolders(type);
+  materialLoading.value = true;
+  try {
+    const folderId = currentMaterialFolderId.value === 0 ? undefined
+      : (currentMaterialFolderId.value === -1 ? 0 : currentMaterialFolderId.value);
+    materialsByType[type] = await fetchContentMaterials({ materialType: type, folderId, ...materialFilters });
+  }
+  catch (error) { Message.error(error instanceof Error ? error.message : '素材加载失败'); }
+  finally { materialLoading.value = false; }
+}
+async function loadActiveMaterials() {
+  if (activeMaterialTab.value === 'AUDIO') {
+    if (currentMaterialFolderId.value === 0) await loadMaterialFolders('AUDIO');
+    await loadBgms();
+  }
+  else await loadMaterialType(activeMaterialTab.value);
+}
+function enterMaterialFolder(folderId: number) {
+  currentMaterialFolderId.value = folderId;
+  Object.assign(materialFilters, { keyword: '', category: '', enabled: undefined });
+  void loadActiveMaterials();
+}
+function leaveMaterialFolder() {
+  currentMaterialFolderId.value = 0;
+  Object.assign(materialFilters, { keyword: '', category: '', enabled: undefined });
+  void loadActiveMaterials();
+}
+function resetActiveMaterialFilters() {
+  if (activeMaterialTab.value === 'AUDIO') resetBgmFilters();
+  else {
+    Object.assign(materialFilters, { keyword: '', category: '', enabled: undefined });
+    void loadMaterialType(activeMaterialTab.value as ContentMaterialType);
+  }
+}
+function openActiveMaterialEditor() {
+  if (activeMaterialTab.value === 'AUDIO') openBgmEditor();
+  else openMaterialEditor();
+}
+function openMaterialEditor(record?: ContentMaterialItem) {
+  if (activeMaterialTab.value === 'AUDIO') return;
+  materialEditingId.value = record?.id;
+  Object.assign(materialForm, record ? {
+    materialName: record.materialName, materialType: record.materialType, folderId: record.folderId, fileUrl: record.fileUrl,
+    originalFileName: record.originalFileName, fileSize: record.fileSize, category: record.category,
+    tags: record.tags || '', description: record.description || '', copyrightStatus: record.copyrightStatus,
+    copyrightNote: record.copyrightNote || '', enabled: record.enabled
+  } : emptyMaterialForm(activeMaterialTab.value));
+  materialEditorVisible.value = true;
+}
+function openMaterialFolderEditor(record?: ContentMaterialFolderItem) {
+  folderEditingId.value = record?.id;
+  Object.assign(folderForm, record ? {
+    folderName: record.folderName, materialType: record.materialType, parentId: record.parentId,
+    enabled: record.enabled, sortOrder: record.sortOrder
+  } : { folderName: '', materialType: activeMaterialTab.value as ContentMaterialFolderType, parentId: 0, enabled: true, sortOrder: 0 });
+  folderEditorVisible.value = true;
+}
+async function toggleMaterialFolder(record: ContentMaterialFolderItem) {
+  try {
+    await updateContentMaterialFolder(record.id, {
+      folderName: record.folderName, materialType: record.materialType, parentId: record.parentId,
+      enabled: !record.enabled, sortOrder: record.sortOrder
+    });
+    Message.success(record.enabled ? '文件夹已停用' : '文件夹已启用');
+    await loadMaterialFolders(activeMaterialTab.value as ContentMaterialFolderType);
+  } catch (error) { Message.error(error instanceof Error ? error.message : '文件夹状态更新失败'); }
+}
+function handleFolderAction(folder: ContentMaterialFolderItem, action: string) {
+  if (action === 'toggle') void toggleMaterialFolder(folder);
+  else if (action === 'rename') openMaterialFolderEditor(folder);
+  else if (action === 'delete') removeMaterialFolder(folder);
+}
+function openMoveMaterial(record: ContentMaterialItem | ContentBgmItem) {
+  movingRecord.value = { id: record.id, type: activeMaterialTab.value };
+  moveForm.folderId = currentMaterialFolderId.value === -1 ? 0 : currentMaterialFolderId.value;
+  moveVisible.value = true;
+}
+async function confirmMoveMaterial() {
+  const record = movingRecord.value;
+  if (!record) return;
+  moving.value = true;
+  try {
+    if (record.type === 'AUDIO') await moveContentBgm(record.id, moveForm.folderId);
+    else await moveContentMaterial(record.id, moveForm.folderId);
+    Message.success('素材已移动');
+    moveVisible.value = false;
+    await loadActiveMaterials();
+  } catch (error) { Message.error(error instanceof Error ? error.message : '移动失败'); }
+  finally { moving.value = false; }
+}
+async function saveMaterialFolder() {
+  const validation = await folderFormRef.value?.validate();
+  if (validation) return;
+  folderSaving.value = true;
+  try {
+    const payload = { ...folderForm };
+    if (folderEditingId.value) await updateContentMaterialFolder(folderEditingId.value, payload);
+    else await createContentMaterialFolder(payload);
+    Message.success(folderEditingId.value ? '文件夹已更新' : '文件夹已创建');
+    folderEditorVisible.value = false;
+    await loadMaterialFolders(activeMaterialTab.value as ContentMaterialFolderType);
+  } catch (error) { Message.error(error instanceof Error ? error.message : '文件夹保存失败'); }
+  finally { folderSaving.value = false; }
+}
+function removeMaterialFolder(record: ContentMaterialFolderItem) {
+  if (record.itemCount > 0) { Message.warning('文件夹内还有素材，请先清空后再删除'); return; }
+  Modal.warning({ title: '删除文件夹', content: `确定删除文件夹“${record.folderName}”吗？删除后不可恢复。`, hideCancel: false, onOk: async () => {
+    await deleteContentMaterialFolder(record.id); Message.success('文件夹已删除'); await loadMaterialFolders(activeMaterialTab.value as ContentMaterialFolderType);
+  } });
+}
+async function handleMaterialFile(...args: unknown[]) {
+  const file = getUploadFile(...args);
+  if (!file || activeMaterialTab.value === 'AUDIO') return;
+  materialUploading.value = true;
+  try {
+    const uploaded = await uploadContentMaterial(activeMaterialTab.value, file);
+    materialForm.fileUrl = uploaded.url;
+    materialForm.originalFileName = uploaded.originalName;
+    materialForm.fileSize = uploaded.size;
+    if (!materialForm.materialName) materialForm.materialName = uploaded.originalName.replace(/\.[^.]+$/, '');
+    Message.success('素材文件上传成功');
+  } catch (error) { Message.error(error instanceof Error ? error.message : '素材文件上传失败'); }
+  finally { materialUploading.value = false; }
+}
+async function saveMaterial() {
+  const validation = await materialFormRef.value?.validate();
+  if (validation) return;
+  if (!materialForm.fileUrl) { Message.warning('请先上传素材文件'); return; }
+  materialSaving.value = true;
+  try {
+    if (materialEditingId.value) await updateContentMaterial(materialEditingId.value, { ...materialForm });
+    else await createContentMaterial({ ...materialForm });
+    Message.success(materialEditingId.value ? '素材已更新' : '素材已添加');
+    materialEditorVisible.value = false;
+    await loadMaterialType(materialForm.materialType);
+  } catch (error) { Message.error(error instanceof Error ? error.message : '素材保存失败'); }
+  finally { materialSaving.value = false; }
+}
+function removeMaterial(record: ContentMaterialItem) {
+  Modal.warning({ title: '删除素材', content: `确定删除“${record.materialName}”吗？删除后列表不再显示。`, hideCancel: false, onOk: async () => {
+    await deleteContentMaterial(record.id); Message.success('素材已删除'); await loadMaterialType(record.materialType);
+  } });
+}
+function splitMaterialTags(tags?: string) { return (tags || '').split(/[,，]/).map(item => item.trim()).filter(Boolean).slice(0, 4); }
+function materialExtension(fileName: string) { return (fileName.split('.').pop() || '-').toUpperCase(); }
+function formatFileSize(bytes?: number) {
+  if (!bytes) return '-';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+function formatDate(value?: string) {
+  if (!value) return '-';
+  return value.replace('T', ' ').substring(0, 16);
+}
+
+watch(activeMaterialTab, () => {
+  currentMaterialFolderId.value = 0;
+  Object.assign(materialFilters, { keyword: '', category: '', enabled: undefined });
+  void loadActiveMaterials();
+});
+
 const accountFilters = reactive({ keyword: '', type: '', status: '', employee: '' });
 type AccountRow = {
   id: number; index: number; platform: string; platformShort: string; platformClass: string;
-  name: string; accountId: string; type: string; org: string; employee: string;
+  name: string; accountId: string; homepageUrl?: string; type: string; org: string; employee: string;
   employeeId: number; organizationId?: number; updated: string; status: string; rawStatus: ContentAccountItem['status'];
 };
 const accountColumns: TableColumnData[] = [
@@ -1747,7 +2260,7 @@ const accountColumns: TableColumnData[] = [
   { title: '账号名称', dataIndex: 'name', width: 180 }, { title: '平台账号ID', dataIndex: 'accountId', width: 180 },
   { title: '账号类型', dataIndex: 'type' }, { title: '归属组织', dataIndex: 'org', width: 220 },
   { title: '归属员工', dataIndex: 'employee' }, { title: '更新时间', dataIndex: 'updated', width: 170 },
-  { title: '账号状态', slotName: 'status' }, { title: '操作', slotName: 'actions', fixed: 'right' }
+  { title: '账号状态', slotName: 'status' }, { title: '操作', slotName: 'actions', width: 260, fixed: 'right' }
 ];
 const planAccountColumns: TableColumnData[] = [
   { title: '发布平台', dataIndex: 'platform', width: 110 },
@@ -1775,7 +2288,7 @@ function toAccountRow(item: ContentAccountItem, index: number): AccountRow {
   const platformMeta = accountPlatformMeta[item.platform] || { short: item.platform.slice(0, 1), className: 'all' };
   return {
     id: item.id, index: index + 1, platform: item.platform, platformShort: platformMeta.short,
-    platformClass: platformMeta.className, name: item.accountName, accountId: item.platformAccountId,
+    platformClass: platformMeta.className, name: item.accountName, accountId: item.platformAccountId, homepageUrl: item.platformHomepageUrl,
     type: item.accountType, org: item.organizationName || '未分配组织',
     employee: `${item.employeeName}${item.employeeNumber ? ` / ${item.employeeNumber}` : ''}`,
     employeeId: item.employeeId, organizationId: item.organizationId,
@@ -1841,19 +2354,20 @@ const accountRules = {
     { required: true, message: '请输入平台账号ID' },
     { match: /^[A-Za-z0-9_.@-]+$/, message: '平台账号ID仅支持字母、数字及 . _ - @' }
   ],
+  platformHomepageUrl: [{ match: /^https?:\/\/[^\s]+$/i, message: '请输入以 http:// 或 https:// 开头的有效地址' }],
   employeeId: [{ required: true, type: 'number' as const, min: 1, message: '请选择归属员工' }]
 };
 type AccountFormState = Omit<ContentAccountPayload, 'employeeId'> & { employeeId?: number };
-const accountForm = reactive<AccountFormState>({ platform: '抖音', accountName: '', platformAccountId: '', accountType: '职人', employeeId: undefined });
+const accountForm = reactive<AccountFormState>({ platform: '抖音', accountName: '', platformAccountId: '', platformHomepageUrl: '', accountType: '职人', employeeId: undefined });
 async function openAccountEditor(record?: AccountRow, readonly = false) {
   await loadEmployees('account');
   accountEditingId.value = record?.id;
   accountReadonly.value = readonly;
   Object.assign(accountForm, record ? {
-    platform: record.platform, accountName: record.name, platformAccountId: record.accountId,
+    platform: record.platform, accountName: record.name, platformAccountId: record.accountId, platformHomepageUrl: record.homepageUrl || '',
     accountType: record.type, organizationId: record.organizationId,
     employeeId: record.employeeId
-  } : { platform: '抖音', accountName: '', platformAccountId: '', accountType: '职人', organizationId: undefined, employeeId: undefined });
+  } : { platform: '抖音', accountName: '', platformAccountId: '', platformHomepageUrl: '', accountType: '职人', organizationId: undefined, employeeId: undefined });
   accountFormRef.value?.clearValidate?.();
   accountEditorVisible.value = true;
 }
@@ -1876,6 +2390,7 @@ async function saveAccount() {
       platform: accountForm.platform,
       accountName: accountForm.accountName,
       platformAccountId: accountForm.platformAccountId,
+      platformHomepageUrl: accountForm.platformHomepageUrl,
       accountType: accountForm.accountType,
       organizationId: accountForm.organizationId,
       organizationName: employee?.organizationName,
@@ -1899,6 +2414,13 @@ function removeAccounts(ids: number[]) {
   Modal.warning({ title: ids.length > 1 ? '批量删除账号' : '删除账号', content: `确定删除选中的 ${ids.length} 个账号吗？`, hideCancel: false, onOk: async () => {
     await deleteContentAccounts(ids); selectedAccountIds.value = []; Message.success('账号已删除'); await loadAccounts();
   } });
+}
+function viewPlatformHomepage(record: AccountRow) {
+  if (!record.homepageUrl) {
+    Message.warning('该账号暂未维护平台主页地址，请先编辑账号补充');
+    return;
+  }
+  window.open(record.homepageUrl, '_blank', 'noopener,noreferrer');
 }
 const importVisible = ref(false);
 const accountImporting = ref(false);
@@ -2142,12 +2664,19 @@ watch(
   async (module) => {
     createVisible.value = false;
     if (module === 'accounts') await loadAccounts();
-    else if (module === 'bgm') await loadBgms();
+    else if (module === 'bgm') await Promise.all([loadBgms(), loadMaterialType('VIDEO'), loadMaterialType('IMAGE')]);
     else if (module === 'analytics') await loadVideoReports();
     else await loadPlans();
   },
   { immediate: true }
 );
+onMounted(() => {
+  statusClock.value = Date.now();
+  statusClockTimer = setInterval(() => { statusClock.value = Date.now(); }, 1000);
+});
+onUnmounted(() => {
+  if (statusClockTimer) clearInterval(statusClockTimer);
+});
 </script>
 
 <style scoped>
@@ -2283,20 +2812,26 @@ small { color:var(--tql-text-tertiary); }
 .topic-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 .topic-list :deep(.arco-tag) { font-size:13px; }
 .topic-tip { margin-top:8px; color:var(--tql-text-tertiary); font-size:12px; line-height:20px; }
-.storyboard-reference-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; margin-bottom:24px; }
-.storyboard-config-panel { min-width:0; padding:20px; background:var(--tql-bg-subtle); border:1px solid var(--tql-border); border-radius:8px; }
+.config-stage-tabs { display:flex; gap:4px; margin-bottom:16px; padding:4px; background:var(--tql-bg-subtle); border:1px solid var(--tql-border); border-radius:8px; }
+.config-stage-tabs button { min-width:0; min-height:40px; flex:1; padding:0 16px; color:var(--tql-text-secondary); font:inherit; font-size:14px; background:transparent; border:0; border-radius:6px; cursor:pointer; transition:color .2s ease,background-color .2s ease,box-shadow .2s ease; }
+.config-stage-tabs button:hover { color:var(--tql-primary); background:rgba(255,255,255,.7); }
+.config-stage-tabs button.active { color:var(--tql-primary); font-weight:500; background:var(--tql-color-white); box-shadow:0 1px 4px rgba(29,33,41,.12); }
+.config-stage-tabs button:focus-visible { outline:2px solid var(--tql-primary); outline-offset:2px; }
+.storyboard-reference-layout { display:block; margin-bottom:0; }
+.storyboard-config-panel { width:100%; min-width:0; box-sizing:border-box; overflow:hidden; margin-bottom:20px; padding:0 20px 20px; background:var(--tql-color-white); border:1px solid var(--tql-border); border-radius:10px; box-shadow:0 2px 8px rgba(29,33,41,.04); }
+.storyboard-content-panel { margin-bottom:20px; }
 .storyboard-toolbar { display:flex; align-items:flex-start; justify-content:space-between; padding-bottom:18px; border-bottom:1px solid var(--tql-border); }
-.storyboard-toolbar > div { display:flex; flex-direction:column; gap:5px; }.storyboard-toolbar strong { font-size:16px; }.storyboard-toolbar span { color:var(--tql-text-tertiary); font-size:12px; }
+.storyboard-toolbar > div { display:flex; flex-direction:column; gap:5px; }.storyboard-toolbar strong { font-size:16px; line-height:22px; }.storyboard-toolbar span { color:var(--tql-text-tertiary); font-size:12px; line-height:18px; }
 .storyboard-toolbar .storyboard-actions { flex-direction:row; align-items:center; gap:12px; }
 .storyboard-toolbar .storyboard-actions label { display:flex; align-items:center; gap:10px; }
 .storyboard-toolbar .storyboard-actions label > span { flex:none; color:var(--tql-text-secondary); white-space:nowrap; }
 .storyboard-toolbar .storyboard-count-input { width:120px; flex:none; }
 .storyboard-toolbar .storyboard-actions :deep(.arco-btn) { flex:none; white-space:nowrap; }
-.storyboard-reference-layout > .storyboard-config-panel:first-child .storyboard-toolbar { flex-direction:column; }
-.storyboard-reference-layout > .storyboard-config-panel:first-child .storyboard-toolbar > div:first-child { width:100%; }
-.storyboard-reference-layout > .storyboard-config-panel:first-child .storyboard-actions { width:100%; box-sizing:border-box; justify-content:space-between; margin-top:18px; padding-top:18px; border-top:1px solid var(--tql-border); }
+.storyboard-reference-layout .storyboard-toolbar { margin:0 -20px; padding:16px 20px 14px; background:var(--tql-bg-subtle); }
+.basic-setting-grid { display:grid; grid-template-columns:minmax(120px,.65fr) minmax(220px,1.35fr); gap:20px; }
+.basic-setting-grid .storyboard-count-input { width:100%; }
 .storyboard-setting-block { min-width:0; padding-top:18px; }
-.material-reference-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+.material-reference-fields { display:grid; grid-template-columns:minmax(180px,.9fr) minmax(210px,1.1fr) minmax(180px,.9fr); gap:20px; }
 .setting-label { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
 .setting-label strong { color:var(--tql-text-primary); font-size:14px; font-weight:500; }
 .setting-label strong i { color:var(--tql-danger); font-style:normal; }
@@ -2311,12 +2846,28 @@ small { color:var(--tql-text-tertiary); }
 .cover-example-upload strong { color:var(--tql-text-secondary); font-size:13px; font-weight:500; }
 .cover-example-upload span { color:var(--tql-text-tertiary); font-size:11px; }
 .bgm-reference-block :deep(.arco-select-view) { width:100%; }
-.plan-bgm-audio { width:100%; height:32px; margin-top:10px; }
+.voice-reference-block :deep(.arco-select-view) { width:100%; }
+.storyboard-editor-actions { display:flex; justify-content:flex-end; margin-bottom:12px; }
+.selected-bgm-list { display:grid; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid var(--tql-border); }
+.selected-bgm-item { display:grid; grid-template-columns:minmax(0,1fr) 220px; align-items:center; gap:14px; padding:10px 12px; background:var(--tql-bg-subtle); border-radius:6px; }
+.selected-bgm-item > div { min-width:0; }
+.selected-bgm-item strong,.selected-bgm-item span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.selected-bgm-item strong { color:var(--tql-text-primary); font-size:13px; font-weight:500; }
+.selected-bgm-item span { margin-top:4px; color:var(--tql-text-tertiary); font-size:11px; }
+.plan-bgm-audio { width:220px; height:30px; }
+.storyboard-editor-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:2px 0 12px; }
+.storyboard-editor-toolbar > div { display:flex; flex-direction:column; gap:4px; }
+.storyboard-editor-toolbar strong { color:var(--tql-text-primary); font-size:15px; }
+.storyboard-editor-toolbar span { color:var(--tql-text-tertiary); font-size:12px; }
 .storyboard-content-form { margin-bottom:24px; padding-bottom:4px; border-bottom:1px solid var(--tql-border); }
 .storyboard-editor-grid { width:100%; }
 .storyboard-copy-column,.storyboard-media-column { min-width:0; }
 .script-field-content { width:100%; min-width:0; }
 .script-field-content :deep(.arco-textarea-wrapper) { width:100%; }
+.storyboard-duration-range { display:flex; align-items:center; gap:8px; width:100%; }
+.storyboard-duration-range :deep(.arco-input-number) { flex:1; min-width:0; }
+.storyboard-duration-range > span { flex:none; color:var(--tql-text-secondary); font-size:13px; }
+.storyboard-duration-range > i { flex:none; color:var(--tql-text-tertiary); font-style:normal; }
 .storyboard-media-column :deep(.arco-upload-wrapper),.storyboard-media-column :deep(.arco-upload) { display:block; width:100%; }
 .storyboard-media-column :deep(.arco-upload-list) { width:100%; }
 .aspect-options { display:flex; width:100%; }
@@ -2333,7 +2884,7 @@ small { color:var(--tql-text-tertiary); }
 .wizard-footer-actions { display:flex; width:100%; min-width:0; min-height:32px; align-items:center; justify-content:flex-end; gap:8px; margin:0; }
 .wizard-footer-actions > .arco-space { margin-left:0; }
 .form-section { padding:20px 2px 26px; border-bottom:1px solid var(--tql-border); }.form-section:first-child { padding-top:0; }.form-section h3 { display:flex; align-items:center; gap:9px; margin:0 0 20px; font-size:16px; }.form-section h3 span { display:grid; width:24px; height:24px; place-items:center; color:var(--tql-color-white); background:var(--tql-primary); border-radius:50%; font-size:12px; }
-.section-title-row { display:flex; align-items:center; justify-content:space-between; }.full-width { width:100%; }.release-date-item :deep(.arco-form-item-extra) { color:var(--tql-danger); }.account-selector { display:flex; align-items:center; justify-content:flex-start; gap:18px; width:100%; padding:12px 16px; background:var(--tql-bg-subtle); border-radius:6px; }.account-selector > span { margin-left:auto; color:var(--tql-text-secondary); }.account-selector strong { color:var(--tql-primary); }
+.section-title-row { display:flex; align-items:center; justify-content:space-between; }.full-width { width:100%; }.release-date-item :deep(.arco-form-item-extra) { color:var(--tql-danger); }.task-start-setting { display:flex; align-items:center; gap:18px; }.task-start-picker { width:280px; }.task-start-setting :deep(.arco-checkbox) { flex:none; }.account-selector { display:flex; align-items:center; justify-content:flex-start; gap:18px; width:100%; padding:12px 16px; background:var(--tql-bg-subtle); border-radius:6px; }.account-selector > span { margin-left:auto; color:var(--tql-text-secondary); }.account-selector strong { color:var(--tql-primary); }
 .duration-tip { margin-top:6px; color:var(--tql-text-tertiary); font-size:12px; }.video-upload { display:flex; width:170px; height:230px; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--tql-text-tertiary); background:var(--tql-bg-subtle); border:1px dashed var(--tql-text-disabled); border-radius:8px; }.video-upload svg { color:var(--tql-primary); font-size:28px; }.video-upload strong { color:var(--tql-text-secondary); }.video-upload span { font-size:11px; }
 .drawer-footer { display:flex; align-items:center; justify-content:space-between; width:100%; }.drawer-footer > span { color:var(--tql-text-tertiary); font-size:12px; }
 .detail-hero { display:flex; align-items:flex-start; justify-content:space-between; padding:4px 0 22px; }.detail-hero h2 { margin:12px 0 6px; }.detail-hero p { margin:0; color:var(--tql-text-tertiary); }.detail-page > h3 { margin:26px 0 12px; }.detail-copy { padding:16px; color:var(--tql-text-secondary); line-height:1.8; background:var(--tql-bg-subtle); border-radius:6px; }
@@ -2374,11 +2925,47 @@ small { color:var(--tql-text-tertiary); }
 .bgm-copyright span { max-width:230px; overflow:hidden; color:var(--tql-text-tertiary); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
 .bgm-form { margin-top:20px; }
 .bgm-form :deep(.arco-input-number) { width:100%; }
+.material-workbench { display:grid; grid-template-columns:220px minmax(0,1fr); height:calc(100vh - 100px); min-height:480px; overflow:hidden; background:var(--tql-color-white); border:1px solid var(--tql-border); border-radius:var(--tql-radius-card); }
+.material-type-rail { display:flex; min-height:0; flex-direction:column; gap:8px; padding:12px; border-right:1px solid var(--tql-border); background:var(--tql-color-white); }
+.material-type-rail .folder-search-input { flex:0 0 auto; }
+.material-folder-tree { flex:1 1 auto; min-height:0; overflow:auto; padding:4px 0; }
+.material-folder-tree :deep(.arco-tree-node-title-block) { border-radius:var(--tql-radius-control); }
+.material-folder-tree :deep(.arco-tree-node-selected .arco-tree-node-title) { color:var(--tql-primary); background:var(--tql-primary-soft); font-weight:500; }
+.folder-create-btn { flex:0 0 auto; margin-top:auto; }
+.material-content { display:grid; min-width:0; align-content:start; gap:20px; padding:16px; overflow-y:auto; }
+.material-preview-cell { display:flex; min-width:300px; align-items:center; gap:12px; }
+.material-preview-cell video,.material-preview-cell img { width:104px; height:64px; flex:0 0 auto; border:1px solid var(--tql-border); border-radius:6px; background:var(--tql-bg-hover); object-fit:cover; }
+.material-preview-cell > div,.material-file-info { display:flex; min-width:0; flex-direction:column; gap:5px; }
+.material-preview-cell strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.material-preview-cell span,.material-file-info span { overflow:hidden; color:var(--tql-text-tertiary); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.material-form { margin-top:20px; }
+.form-helper { margin-top:8px; color:var(--tql-text-tertiary); font-size:12px; }
 @media (max-width:1280px) { .search-panel form { grid-template-columns:repeat(2,minmax(240px,1fr)); } }
-@media (max-width:1100px) { .storyboard-reference-layout { grid-template-columns:1fr; }.material-reference-fields { grid-template-columns:1fr 1fr; } }
+@media (max-width:1100px) { .material-reference-fields { grid-template-columns:1fr 1fr; }.voice-reference-block { grid-column:1 / -1; } }
+@media (max-width:720px) { .basic-setting-grid,.material-reference-fields { grid-template-columns:1fr; }.selected-bgm-item { grid-template-columns:1fr; }.plan-bgm-audio { width:100%; } }
 @media (max-width:720px) {
   .calendar-toolbar { align-items:flex-start; flex-direction:column; gap:var(--tql-space-3); }
   .calendar-panel :deep(.arco-card-body) { overflow-x:auto; }
   .weekday-row, .calendar-grid { min-width:980px; }
 }
+.folder-breadcrumb { display:flex; flex:1; align-items:center; gap:8px; margin-right:24px; }
+.folder-breadcrumb .breadcrumb-divider { color:var(--tql-text-tertiary); }
+.folder-breadcrumb .breadcrumb-current { color:var(--tql-text-primary); font-weight:500; }
+.folder-search-panel { align-self:start; }
+.folder-search-panel :deep(.arco-card-body) { align-items:center; gap:14px; padding:8px 14px; }
+.folder-search-panel form { grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:12px 16px; }
+.material-folder-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; padding:4px; }
+.material-content .search-panel, .material-content .data-panel { border:none; }
+.material-folder-card { position:relative; display:flex; align-items:center; gap:14px; padding:18px; background:var(--tql-color-white); border:1px solid var(--tql-border); border-radius:8px; cursor:pointer; transition:all .2s ease; }
+.material-folder-card:hover { border-color:var(--tql-primary-border-strong); box-shadow:0 2px 8px rgba(22,93,255,.08); }
+.material-folder-card .folder-icon { display:grid; width:48px; height:48px; place-items:center; color:var(--tql-primary); background:var(--tql-primary-soft); border-radius:8px; font-size:24px; }
+.material-folder-card .folder-info { display:flex; min-width:0; flex-direction:column; gap:5px; flex:1; }
+.material-folder-card .folder-info strong { overflow:hidden; font-size:15px; font-weight:500; text-overflow:ellipsis; white-space:nowrap; }
+.material-folder-card .folder-info span { color:var(--tql-text-tertiary); font-size:12px; }
+.material-folder-card .folder-status { position:absolute; right:12px; top:12px; }
+.material-folder-card .folder-more-btn { position:absolute; right:8px; bottom:8px; width:28px; height:28px; padding:0; color:var(--tql-text-tertiary); border-radius:6px; }
+.material-folder-card .folder-more-btn:hover { color:var(--tql-primary); background:var(--tql-bg-hover); }
+.material-folder-card.disabled { background:var(--tql-bg-subtle); }
+.material-folder-card.disabled .folder-icon { color:var(--tql-text-tertiary); background:var(--tql-bg-hover); }
+.move-form { margin-top:16px; }
 </style>

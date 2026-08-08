@@ -58,7 +58,11 @@
     },
     "app-ios" : {
         "privacyDescription" : {
-            "NSLocalNetworkUsageDescription" : "用于连接同一局域网内的同庆楼门店运营调试服务"
+            "NSLocalNetworkUsageDescription" : "用于连接同一局域网内的同庆楼门店运营调试服务",
+            "NSPhotoLibraryUsageDescription" : "用于选择任务素材和成片视频",
+            "NSPhotoLibraryAddUsageDescription" : "用于将合成后的视频保存到您的相册",
+            "NSCameraUsageDescription" : "用于拍摄任务所需的视频素材",
+            "NSMicrophoneUsageDescription" : "用于录制任务视频中的声音"
         },
         "distribute" : {
             "modules" : {},

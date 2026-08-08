@@ -3,14 +3,15 @@ const SESSION_KEY = 'tql-store:merchant:session'
 
 export function getToken(): string {
 	const session = uni.getStorageSync(SESSION_KEY)
-	if (session && session.expiresAt && session.expiresAt <= Date.now()) {
+	if (session != null && Number(session.expiresAt ?? 0) > 0 && Number(session.expiresAt) <= Date.now()) {
 		clearSession()
 		return ''
 	}
-	return uni.getStorageSync(TOKEN_KEY) || ''
+	const token = uni.getStorageSync(TOKEN_KEY)
+	return token == null ? '' : String(token)
 }
 export function saveSession(loginResult: any): void {
-	const expiresIn = Number(loginResult.expiresIn) || 0
+	const expiresIn = Number(loginResult.expiresIn ?? 0)
 	const session = {
 		user: loginResult.user,
 		expiresAt: expiresIn > 0 ? Date.now() + expiresIn * 1000 : 0
@@ -20,8 +21,8 @@ export function saveSession(loginResult: any): void {
 }
 
 export function getSession(): any | null {
-	if (!getToken()) return null
-	return uni.getStorageSync(SESSION_KEY) || null
+	if (getToken().length === 0) return null
+	return uni.getStorageSync(SESSION_KEY) ?? null
 }
 
 export function clearSession(): void {

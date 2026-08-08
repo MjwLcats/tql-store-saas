@@ -7,7 +7,7 @@ export const apiProfiles = {
 	auto: 'http://10.10.5.144:8080'
 }
 
-const apiBaseUrl = apiProfiles[ACTIVE_API_PROFILE]
+const apiBaseUrl = String(apiProfiles[ACTIVE_API_PROFILE] || '')
 
 if (!apiBaseUrl) {
 	throw new Error(`未知接口环境：${ACTIVE_API_PROFILE}`)

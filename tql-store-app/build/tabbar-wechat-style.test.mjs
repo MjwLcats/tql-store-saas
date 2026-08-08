@@ -39,18 +39,11 @@ test('application workbench exposes the first inspection modules', () => {
 	assert.match(homeSource, /data-testid="panel-applications"/)
 })
 
-test('capsule implementation is retained but commented out', () => {
-	assert.match(tabBarSource, /胶囊选中背景暂时停用，保留以便后续恢复/)
-	assert.match(tabBarSource, /胶囊位移逻辑暂时停用，保留以便后续恢复/)
-	assert.match(tabBarSource, /\/\* 胶囊选中背景暂时停用/)
-})
-
-test('wechat-style bar is full width with no rounded capsule container', () => {
+test('custom tab bar is full width, safe-area aware and text only', () => {
 	assert.match(tabBarSource, /left: 0;/)
 	assert.match(tabBarSource, /right: 0;/)
 	assert.match(tabBarSource, /border-top: 1rpx solid/)
-	assert.match(tabBarSource, /border-radius: 0;/)
-	assert.match(tabBarSource, /height: 96rpx;/)
-	assert.match(tabBarSource, /font-size: 28rpx;/)
-	assert.match(tabBarSource, /font-weight: 600;/)
+	assert.match(tabBarSource, /env\(safe-area-inset-bottom\)/)
+	assert.match(tabBarSource, /min-height: 96rpx;/)
+	assert.match(tabBarSource, /<button\b/)
 })

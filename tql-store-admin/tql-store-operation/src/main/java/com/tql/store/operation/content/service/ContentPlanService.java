@@ -546,7 +546,8 @@ public class ContentPlanService {
         String normalizedCategory = normalizedCategory(category);
         return jdbcTemplate.query("""
                 SELECT task.id, task.activity_name, task.plan_name, task.task_instruction,
-                       plan.creation_mode, task.storyboard_count, task.current_stage,
+                       plan.creation_mode, task.storyboard_count, activity.status AS plan_status,
+                       task.current_stage,
                        task.deadline, task.completion_time, task.create_time
                 FROM ops_content_employee_task task
                 JOIN ops_content_plan plan
@@ -554,7 +555,6 @@ public class ContentPlanService {
                 JOIN ops_content_activity activity
                   ON activity.id = plan.activity_id AND activity.tenant_id = task.tenant_id AND activity.deleted = 0
                 WHERE task.tenant_id = ? AND task.employee_id = ? AND task.deleted = 0
-                  AND task.current_stage <> 'TERMINATED'
                   AND (
                     ? = 'ALL'
                     OR (? = 'TODO' AND task.current_stage IN ('LOCKED','READY_TO_SHOOT','SHOOTING','NEEDS_REVISION','READY_TO_PUBLISH'))
@@ -573,6 +573,7 @@ public class ContentPlanService {
                 rs.getString("task_instruction"),
                 rs.getString("creation_mode"),
                 rs.getInt("storyboard_count"),
+                rs.getString("plan_status"),
                 rs.getString("current_stage"),
                 rs.getTimestamp("deadline").toLocalDateTime(),
                 rs.getTimestamp("completion_time") == null
@@ -585,7 +586,8 @@ public class ContentPlanService {
     public EmployeeContentTaskView employeeTask(Long tenantId, Long employeeId, Long taskId) {
         List<EmployeeContentTaskView> records = jdbcTemplate.query("""
                 SELECT task.id, task.activity_name, task.plan_name, task.task_instruction,
-                       plan.creation_mode, task.storyboard_count, task.current_stage,
+                       plan.creation_mode, task.storyboard_count, activity.status AS plan_status,
+                       task.current_stage,
                        task.deadline, task.completion_time, task.create_time
                 FROM ops_content_employee_task task
                 JOIN ops_content_plan plan
@@ -593,7 +595,6 @@ public class ContentPlanService {
                 JOIN ops_content_activity activity
                   ON activity.id = plan.activity_id AND activity.tenant_id = task.tenant_id AND activity.deleted = 0
                 WHERE task.id = ? AND task.tenant_id = ? AND task.employee_id = ? AND task.deleted = 0
-                  AND task.current_stage <> 'TERMINATED'
                 """, (rs, rowNum) -> toTaskView(
                 rs.getLong("id"),
                 rs.getString("activity_name"),
@@ -601,6 +602,7 @@ public class ContentPlanService {
                 rs.getString("task_instruction"),
                 rs.getString("creation_mode"),
                 rs.getInt("storyboard_count"),
+                rs.getString("plan_status"),
                 rs.getString("current_stage"),
                 rs.getTimestamp("deadline").toLocalDateTime(),
                 rs.getTimestamp("completion_time") == null
@@ -784,15 +786,27 @@ public class ContentPlanService {
             String taskInstruction,
             String creationMode,
             int storyboardCount,
+            String planStatus,
             String stage,
             LocalDateTime deadline,
             LocalDateTime completionTime,
             LocalDateTime createdTime) {
         TaskPresentation presentation = TaskPresentation.of(stage);
         return new EmployeeContentTaskView(
-                id, activityName, planName, taskInstruction, creationMode, storyboardCount, stage,
+                id, activityName, planName, taskInstruction, creationMode, storyboardCount,
+                planStatus, planStatusLabel(planStatus), stage,
                 presentation.label(), presentation.hint(), presentation.category(),
                 deadline, completionTime, createdTime);
+    }
+
+    private String planStatusLabel(String status) {
+        return switch (status == null ? "" : status) {
+            case "DRAFT" -> "未下发";
+            case "ACTIVE" -> "进行中";
+            case "PAUSED" -> "已暂停";
+            case "TERMINATED" -> "已终止";
+            default -> "状态更新中";
+        };
     }
 
     private record PlanSnapshot(
